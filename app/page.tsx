@@ -16,7 +16,13 @@ import {
   CheckCircle2,
   RefreshCw,
   Clock,
-  Layers
+  Layers,
+  BarChart3,
+  TrendingUp,
+  Receipt,
+  PieChart,
+  Trees,
+  AlertTriangle
 } from 'lucide-react';
 
 export interface TaxKlimakaItem {
@@ -65,7 +71,7 @@ function isReservationExpired(endDateIso: string | null | undefined): boolean {
   return endStr < todayStr;
 }
 
-// Helper to calculate exact financial metrics:
+// Helper to calculate single reservation financials:
 // Platfor Commision = Fee * Platforms.PlatCommission
 // Manager Commision = (Fee - Platfor Commision) * Platforms.Commission
 // NetFee = Fee - Platfor Commision - Manager Commision
@@ -106,6 +112,80 @@ function calculateProgressiveTax(taxableGrossFee: number, items: TaxKlimakaItem[
   return totalTax;
 }
 
+// Helper to compute aggregate financial metrics for a list of reservations
+function computePeriodFinancials(resList: Reservation[], taxItems: TaxKlimakaItem[]) {
+  let activeCount = 0;
+  let cancelCount = 0;
+  let totalFee = 0;
+  let taxableFee = 0;
+  let totalDays = 0;
+  let taxableDays = 0;
+  let totalPlatComm = 0;
+  let totalMgrComm = 0;
+  let totalNetFee = 0;
+
+  resList.forEach(res => {
+    if (res.canceled) {
+      cancelCount++;
+      return;
+    }
+
+    activeCount++;
+    const fee = Number(res.fee || 0);
+    const platRate = Number(res.platforms?.plat_commission || 0);
+    const mgrRate = Number(res.platforms?.commission || 0);
+    const isTaxable = Boolean(res.platforms?.tax_able);
+
+    // Duration days
+    let days = 0;
+    if (res.start_date && res.end_date) {
+      const s = new Date(res.start_date).getTime();
+      const e = new Date(res.end_date).getTime();
+      if (!isNaN(s) && !isNaN(e)) {
+        days = Math.ceil(Math.abs(e - s) / (1000 * 60 * 60 * 24));
+      }
+    }
+
+    totalFee += fee;
+    totalDays += days;
+
+    if (isTaxable) {
+      taxableFee += fee;
+      taxableDays += days;
+    }
+
+    const platComm = fee * platRate;
+    const remaining = fee - platComm;
+    const mgrComm = remaining * mgrRate;
+    const netFee = fee - platComm - mgrComm;
+
+    totalPlatComm += platComm;
+    totalMgrComm += mgrComm;
+    totalNetFee += netFee;
+  });
+
+  const perivalon = totalDays * 15; // €15 / day
+  const totalCommissions = totalPlatComm + totalMgrComm + perivalon;
+  const tax = calculateProgressiveTax(taxableFee, taxItems);
+  const netIncomeAfterTax = totalNetFee - tax;
+
+  return {
+    activeCount,
+    cancelCount,
+    totalFee,
+    taxableFee,
+    totalDays,
+    taxableDays,
+    totalPlatComm,
+    totalMgrComm,
+    perivalon,
+    totalCommissions,
+    totalNetFee,
+    tax,
+    netIncomeAfterTax
+  };
+}
+
 export default function ReservationsPage() {
   const { user, role, ownerId, selectedHouseId: globalSelectedHouseId, assignedHouseIds, theme } = useAuth();
   
@@ -118,11 +198,12 @@ export default function ReservationsPage() {
   // Filters matching user request
   const [selectedYear, setSelectedYear] = useState<string>('2026');
   const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
-  const [onlyCurrent, setOnlyCurrent] = useState<boolean>(false); // Toggle: false = Όλα, true = Τρέχοντα
+  const [onlyCurrent, setOnlyCurrent] = useState<boolean>(false);
   const [hideCancelled, setHideCancelled] = useState<boolean>(false);
 
-  // Selected reservation for Eye modal
+  // Modals
   const [selectedRes, setSelectedRes] = useState<Reservation | null>(null);
+  const [showFinancialModal, setShowFinancialModal] = useState<boolean>(false);
 
   useEffect(() => {
     fetchData();
@@ -189,7 +270,6 @@ export default function ReservationsPage() {
 
       const json = await response.json();
       if (json.success) {
-        // Update local state immediately
         setReservations(prev => prev.map(r => r.reser_id === res.reser_id ? { ...r, canceled: newStatus } : r));
         setSelectedRes(prev => prev ? { ...prev, canceled: newStatus } : null);
       } else {
@@ -205,28 +285,23 @@ export default function ReservationsPage() {
 
   // Role & Filter Logic
   const filteredReservations = reservations.filter((res) => {
-    // 1. Role / House Assignment Filter
     if (assignedHouseIds.length > 0 && res.f_house_aid) {
       if (!assignedHouseIds.includes(res.f_house_aid)) return false;
     }
 
-    // 2. Specific House Filter
     if (selectedHouseId !== 'ALL' && res.f_house_aid !== selectedHouseId) {
       return false;
     }
 
-    // 3. Year Filter (Strictly matches selected year using getYearFromIso)
     const resYear = getYearFromIso(res.start_date);
     if (resYear !== selectedYear) {
       return false;
     }
 
-    // 4. Hide Cancelled Toggle
     if (hideCancelled && res.canceled) {
       return false;
     }
 
-    // 5. Toggle Όλα / Τρέχοντα (Hides expired reservations when onlyCurrent === true)
     if (onlyCurrent && isReservationExpired(res.end_date)) {
       return false;
     }
@@ -238,35 +313,23 @@ export default function ReservationsPage() {
   const totalCount = filteredReservations.length;
   const cancelledCount = filteredReservations.filter(r => r.canceled).length;
 
-  // Active (non-canceled) reservations
-  const activeReservations = filteredReservations.filter(r => !r.canceled);
+  // Actual Financials (considering only active non-canceled reservations)
+  const actualFinancials = computePeriodFinancials(filteredReservations, taxItems);
 
-  // 1. Sum of NetFee for all active reservations
-  const totalNetIncome = activeReservations.reduce((sum, res) => {
-    const { netFee } = calculateFinancials(
-      res.fee,
-      res.platforms?.plat_commission || 0,
-      res.platforms?.commission || 0
-    );
-    return sum + netFee;
-  }, 0);
+  // Potential Financials (assuming 0 cancellations)
+  const potentialFinancials = computePeriodFinancials(
+    filteredReservations.map(r => ({ ...r, canceled: false })),
+    taxItems
+  );
 
-  // 2. Sum of Fee for taxable platforms (Platforms.tax_able === true)
-  const taxableGrossFee = activeReservations
-    .filter(r => Boolean(r.platforms?.tax_able))
-    .reduce((sum, res) => sum + Number(res.fee || 0), 0);
-
-  // 3. Calculate Tax Amount using Progressive Tax Scale
-  const taxAmount = calculateProgressiveTax(taxableGrossFee, taxItems);
-
-  // 4. Calculate Net Income (After Tax) = totalNetIncome - taxAmount
-  const netIncomeAfterTax = totalNetIncome - taxAmount;
+  // Loss Due to Cancellations = Potential Net Income After Tax - Actual Net Income After Tax
+  const cancellationLoss = Math.max(0, potentialFinancials.netIncomeAfterTax - actualFinancials.netIncomeAfterTax);
 
   const isDark = theme === 'dark';
 
   return (
     <div className="max-w-4xl mx-auto space-y-5 pb-12">
-      {/* ── FILTER & SUMMARY PANEL (Matching Mobile Layout Screenshot) ── */}
+      {/* ── FILTER & SUMMARY PANEL ── */}
       <div className={`p-4 rounded-2xl border shadow-sm transition-colors ${
         isDark 
           ? 'bg-slate-900/90 border-slate-800' 
@@ -318,7 +381,7 @@ export default function ReservationsPage() {
 
           {/* Action Buttons: Toggle Όλα/Τρέχοντα & Hide Cancelled */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* NEW TOGGLE: Όλα / Τρέχοντα */}
+            {/* Toggle Όλα / Τρέχοντα */}
             <button
               type="button"
               onClick={() => setOnlyCurrent(!onlyCurrent)}
@@ -353,7 +416,7 @@ export default function ReservationsPage() {
           </div>
         </div>
 
-        {/* Counter & Financial Summary Line: Reservations | Income | Net Income (Tax) */}
+        {/* Counter & Summary Line: Reservations | Income | Financial Details Button */}
         <div className={`mt-3 pt-3 border-t text-xs font-semibold flex flex-wrap items-center justify-between gap-2.5 ${
           isDark ? 'border-slate-800 text-slate-400' : 'border-sky-200/80 text-sky-900'
         }`}>
@@ -362,23 +425,28 @@ export default function ReservationsPage() {
               <span>Reservations: </span>
               <span className="font-bold text-sky-500">{totalCount}</span>
             </div>
+
             <span>|</span>
+
             <div>
               <span>Income: </span>
               <span className="font-extrabold text-emerald-400">
-                €{totalNetIncome.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                €{actualFinancials.totalNetFee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
               </span>
             </div>
+
             <span>|</span>
-            <div className="flex items-center gap-1">
-              <span>Net Income: </span>
-              <span className="font-extrabold text-indigo-400">
-                €{netIncomeAfterTax.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
-              </span>
-              <span className="text-[11px] text-slate-400 font-normal">
-                (€{taxAmount.toLocaleString('el-GR', { minimumFractionDigits: 2 })} φόρος)
-              </span>
-            </div>
+
+            {/* NEW Financial Summary Icon Button */}
+            <button
+              type="button"
+              onClick={() => setShowFinancialModal(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20 transition-all cursor-pointer shadow-sm"
+              title="Αναλυτικά Οικονομικά Στοιχεία & Φόρος"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Οικονομικά Στοιχεία</span>
+            </button>
           </div>
 
           {cancelledCount > 0 && (
@@ -522,6 +590,172 @@ export default function ReservationsPage() {
         </div>
       )}
 
+      {/* ── FINANCIAL SUMMARY MODAL (Icon Click) ── */}
+      {showFinancialModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className={`w-full max-w-lg rounded-2xl border p-6 space-y-5 shadow-2xl relative transition-colors max-h-[90vh] overflow-y-auto ${
+            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-md">
+                  <BarChart3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-extrabold tracking-tight">Οικονομική Αναφορά {selectedYear}</h3>
+                  <p className="text-xs text-slate-400">Αναλυτικά στοιχεία εσόδων, προμηθειών, φόρων & ακυρώσεων</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFinancialModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Financial Table / Card Content */}
+            <div className="space-y-4 text-xs">
+              {/* SECTION A: Overview Metrics */}
+              <div className={`p-4 rounded-xl border space-y-2.5 ${isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 flex items-center gap-1.5 font-semibold">
+                    <Receipt className="w-4 h-4 text-sky-400" />
+                    Reservations:
+                  </span>
+                  <span className="font-bold text-sm text-sky-400">{actualFinancials.activeCount}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 flex items-center gap-1.5 font-semibold">
+                    <Ban className="w-4 h-4 text-rose-400" />
+                    Cancelations:
+                  </span>
+                  <span className="font-bold text-sm text-rose-400">{actualFinancials.cancelCount}</span>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-800/60 pt-2">
+                  <span className="text-slate-400 font-semibold">Fee:</span>
+                  <span className="font-bold text-sm">
+                    €{actualFinancials.totalFee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                    <span className="ml-1 text-slate-400 font-normal text-[11px]">
+                      (€{actualFinancials.taxableFee.toLocaleString('el-GR', { minimumFractionDigits: 2 })} taxable)
+                    </span>
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 font-semibold">Days:</span>
+                  <span className="font-bold text-sm">
+                    {actualFinancials.totalDays} ημέρες
+                    <span className="ml-1 text-slate-400 font-normal text-[11px]">
+                      ({actualFinancials.taxableDays} taxable)
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              {/* SECTION B: Commissions Breakdown */}
+              <div className={`p-4 rounded-xl border space-y-2.5 ${isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <p className="font-bold text-xs uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
+                  <PieChart className="w-4 h-4 text-indigo-400" />
+                  Προμήθειες & Επιβαρύνσεις
+                </p>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Platform Commission:</span>
+                  <span className="font-semibold text-rose-400">
+                    €{actualFinancials.totalPlatComm.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Manager Commission:</span>
+                  <span className="font-semibold text-indigo-400">
+                    €{actualFinancials.totalMgrComm.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 flex items-center gap-1">
+                    <Trees className="w-3.5 h-3.5 text-emerald-400" />
+                    Περιβάλλον ({actualFinancials.totalDays} ημ. * €15):
+                  </span>
+                  <span className="font-semibold text-emerald-400">
+                    €{actualFinancials.perivalon.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-800/60 pt-2 font-bold text-sm">
+                  <span>Σύνολο Commissions:</span>
+                  <span className="text-amber-400">
+                    €{actualFinancials.totalCommissions.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              {/* SECTION C: Income & Progressive Tax */}
+              <div className={`p-4 rounded-xl border space-y-2.5 ${isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                <p className="font-bold text-xs uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
+                  <TrendingUp className="w-4 h-4 text-emerald-400" />
+                  Έσοδα & Φόρος
+                </p>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Income (Net Fee):</span>
+                  <span className="font-extrabold text-sm text-emerald-400">
+                    €{actualFinancials.totalNetFee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Φόρος (Progressive Tax):</span>
+                  <span className="font-bold text-sm text-rose-400">
+                    -€{actualFinancials.tax.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-800/60 pt-2.5 text-base font-black">
+                  <span>Net Income (After Tax):</span>
+                  <span className="text-indigo-400">
+                    €{actualFinancials.netIncomeAfterTax.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              {/* SECTION D: Cancellation Loss */}
+              <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 space-y-1.5">
+                <div className="flex items-center justify-between font-bold text-sm">
+                  <span className="flex items-center gap-1.5 text-rose-400">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    Απώλεια Λόγω Ακυρώσεων:
+                  </span>
+                  <span className="text-base text-rose-400 font-extrabold">
+                    -€{cancellationLoss.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <p className="text-[11px] opacity-80 leading-relaxed">
+                  * Υπολογίζεται ως η διαφορά του Net Income αν δεν υπήρχε καμία ακύρωση (€{potentialFinancials.netIncomeAfterTax.toLocaleString('el-GR', { minimumFractionDigits: 2 })}) με το τρέχον Net Income (€{actualFinancials.netIncomeAfterTax.toLocaleString('el-GR', { minimumFractionDigits: 2 })}).
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowFinancialModal(false)}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 text-white hover:bg-slate-700 text-xs font-bold transition-all cursor-pointer"
+              >
+                Κλείσιμο
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── RESERVATION DETAILS MODAL (Eye Icon Click) ── */}
       {selectedRes && (() => {
         const { fee, platformCommission, managerCommission, netFee } = calculateFinancials(
@@ -591,7 +825,7 @@ export default function ReservationsPage() {
                   </div>
                 </div>
 
-                {/* Financial Breakdown (Matching Exact User Formulas) */}
+                {/* Financial Breakdown */}
                 <div className={`p-3.5 rounded-xl border space-y-2 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-400">Πλατφόρμα:</span>
@@ -629,7 +863,6 @@ export default function ReservationsPage() {
 
               {/* Modal Footer with Cancel / Reactivate Toggle Button */}
               <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
-                {/* Cancel / Reactivate Toggle Button */}
                 <button
                   type="button"
                   disabled={updatingCancel}
