@@ -26,13 +26,18 @@ interface AuthContextType {
   theme: 'dark' | 'light';
   toggleTheme: () => void;
   initialized: boolean;
+  siteUnlocked: boolean;
+  unlockSite: (passcode: string) => boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Valid registered accounts for secure login (Password: Skindilias2026!)
+// Valid site security passcodes (Layer 1 Gatekeeper)
+const SITE_SECURITY_PASSCODES = ['2026', 'skindilias', 'skindilias2026', 'villa2026', '1234'];
+
+// Valid registered accounts for user login (Layer 2)
 const REGISTERED_ACCOUNTS = [
   {
     email: 'skinkon@gmail.com',
@@ -52,6 +57,7 @@ const REGISTERED_ACCOUNTS = [
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(null);
+  const [siteUnlocked, setSiteUnlocked] = useState<boolean>(false);
   const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
   const [assignedHouseIds, setAssignedHouseIds] = useState<number[]>([]);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -71,6 +77,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           document.documentElement.classList.remove('dark');
         }
+      }
+
+      // Check Site Gatekeeper Status
+      const savedSiteUnlock = sessionStorage.getItem('vr_site_unlocked');
+      if (savedSiteUnlock === 'true') {
+        setSiteUnlocked(true);
       }
 
       const savedUser = localStorage.getItem('vr_session');
@@ -101,6 +113,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Layer 1: Unlock Site Protection Gatekeeper
+  const unlockSite = (passcodeInput: string): boolean => {
+    const cleanPass = passcodeInput.trim().toLowerCase();
+    if (SITE_SECURITY_PASSCODES.includes(cleanPass)) {
+      setSiteUnlocked(true);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('vr_site_unlocked', 'true');
+      }
+      return true;
+    }
+    return false;
+  };
+
   async function loadAssignedHouses(session: UserSession) {
     try {
       if (session.role === 'MANAGER' && session.managerId) {
@@ -126,6 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Layer 2: User Login
   async function login(emailInput: string, passwordInput: string): Promise<{ success: boolean; error?: string }> {
     const cleanEmail = emailInput.trim().toLowerCase();
     const cleanPassword = passwordInput.trim();
@@ -134,7 +160,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: 'Παρακαλώ συμπληρώστε email και κωδικό πρόσβασης' };
     }
 
-    // Match registered account
     const account = REGISTERED_ACCOUNTS.find(a => a.email.toLowerCase() === cleanEmail);
     if (!account) {
       return { success: false, error: 'Δεν βρέθηκε εγγεγραμμένος λογαριασμός με αυτό το email' };
@@ -210,6 +235,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         theme,
         toggleTheme,
         initialized,
+        siteUnlocked,
+        unlockSite,
         login,
         logout
       }}
