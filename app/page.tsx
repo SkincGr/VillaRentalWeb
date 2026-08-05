@@ -12,7 +12,11 @@ import {
   User, 
   Calendar as CalendarIcon, 
   Users, 
-  FileText
+  FileText,
+  DollarSign,
+  Percent,
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
 
 // Helper to safely extract 4-digit Year string from any ISO date string (cross-browser / iOS Safari safe)
@@ -45,12 +49,32 @@ function getMonthBadge(isoString: string | null | undefined): string {
   return '';
 }
 
+// Helper to calculate exact financial metrics as requested:
+// Platfor Commision = Fee * Platforms.PlatCommission
+// Manager Commision = (Fee - Platfor Commision) * Platforms.Commission
+// NetFee = Fee - Platfor Commision - Manager Commision
+function calculateFinancials(feeNum: number, platCommRate: number, managerCommRate: number) {
+  const fee = Number(feeNum || 0);
+  const platComm = fee * Number(platCommRate || 0);
+  const remaining = fee - platComm;
+  const mgrComm = remaining * Number(managerCommRate || 0);
+  const netFee = fee - platComm - mgrComm;
+
+  return {
+    fee,
+    platformCommission: platComm,
+    managerCommission: mgrComm,
+    netFee
+  };
+}
+
 export default function ReservationsPage() {
   const { user, role, ownerId, selectedHouseId: globalSelectedHouseId, assignedHouseIds, theme } = useAuth();
   
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [houses, setHouses] = useState<House[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatingCancel, setUpdatingCancel] = useState(false);
 
   // Filters matching user request
   const [selectedYear, setSelectedYear] = useState<string>('2026');
@@ -106,6 +130,34 @@ export default function ReservationsPage() {
       setSelectedYear(availableYears[0]);
     }
   }, [reservations]);
+
+  // Toggle reservation cancellation status
+  const handleToggleCancel = async (res: Reservation) => {
+    setUpdatingCancel(true);
+    const newStatus = !res.canceled;
+
+    try {
+      const response = await fetch('/api/reservations/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reser_id: res.reser_id, canceled: newStatus })
+      });
+
+      const json = await response.json();
+      if (json.success) {
+        // Update local state immediately
+        setReservations(prev => prev.map(r => r.reser_id === res.reser_id ? { ...r, canceled: newStatus } : r));
+        setSelectedRes(prev => prev ? { ...prev, canceled: newStatus } : null);
+      } else {
+        alert('Σφάλμα ενημέρωσης: ' + (json.error || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error('Error toggling cancellation:', err);
+      alert('Σφάλμα σύνδεσης κατά την ακύρωση/επαναφορά');
+    } finally {
+      setUpdatingCancel(false);
+    }
+  };
 
   // Role & Filter Logic
   const filteredReservations = reservations.filter((res) => {
@@ -193,8 +245,9 @@ export default function ReservationsPage() {
 
           {/* Toggle Hide Cancelled Button */}
           <button
+            type="button"
             onClick={() => setHideCancelled(!hideCancelled)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
               hideCancelled
                 ? 'bg-rose-500 text-white border-rose-600 shadow-sm'
                 : isDark
@@ -253,6 +306,13 @@ export default function ReservationsPage() {
               }
             }
 
+            // Financial Calculations matching user formula
+            const { fee, managerCommission, netFee } = calculateFinancials(
+              res.fee,
+              res.platforms?.plat_commission || 0,
+              res.platforms?.commission || 0
+            );
+
             return (
               <div
                 key={res.reser_id}
@@ -285,18 +345,18 @@ export default function ReservationsPage() {
                     )}
                   </div>
 
-                  {/* Month Badge */}
+                  {/* Month Badge & Eye Button */}
                   <div className="flex items-center gap-2">
                     <span className="px-3 py-1 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-sm">
                       {monthBadge}
                     </span>
-                    {/* Eye Button */}
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedRes(res);
                       }}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-sky-500/10 transition-all"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-sky-500/10 transition-all cursor-pointer"
                       title="Προβολή"
                     >
                       <Eye className="w-4.5 h-4.5" />
@@ -310,7 +370,14 @@ export default function ReservationsPage() {
                   {diffDays > 0 && <span className="ml-1 text-slate-500">({diffDays} days)</span>}
                 </div>
 
-                {/* Details Subtitle Row */}
+                {/* Fee / Manager Commission Line (Below Date) */}
+                <div className="mt-1 text-xs font-medium text-slate-400 flex items-center gap-2">
+                  <span>Fee: <strong className={isDark ? 'text-slate-200' : 'text-slate-800'}>€{fee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</strong></span>
+                  <span>/</span>
+                  <span>Manager: <strong className="text-indigo-400">€{managerCommission.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</strong></span>
+                </div>
+
+                {/* Details Subtitle Row & Green Net Price Tag */}
                 <div className="mt-2.5 pt-2.5 border-t border-slate-800/40 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="text-slate-400 space-x-1.5">
                     <span className="font-semibold text-sky-400">{res.platforms?.name || 'N/A'}</span>
@@ -319,13 +386,13 @@ export default function ReservationsPage() {
                     {res.kids > 0 && <span>/ {res.kids} kids</span>}
                   </div>
 
-                  {/* Price Tag */}
+                  {/* Green Price Tag = Net Fee */}
                   <div className={`text-base font-extrabold ${
                     res.canceled 
                       ? 'text-slate-500 line-through' 
                       : 'text-emerald-500'
                   }`}>
-                    €{Number(res.fee || 0).toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                    €{netFee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
                   </div>
                 </div>
               </div>
@@ -335,106 +402,150 @@ export default function ReservationsPage() {
       )}
 
       {/* ── RESERVATION DETAILS MODAL (Eye Icon Click) ── */}
-      {selectedRes && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className={`w-full max-w-lg rounded-2xl border p-6 space-y-5 shadow-2xl relative transition-colors ${
-            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-          }`}>
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
-              <div>
-                <h3 className="text-lg font-extrabold flex items-center gap-2">
-                  <span>Κράτηση #{selectedRes.reser_id}</span>
-                  {selectedRes.canceled ? (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">Ακυρώθηκε</span>
-                  ) : (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Ενεργή</span>
-                  )}
-                </h3>
-                <p className="text-xs text-slate-400">Πληροφορίες κράτησης & πελάτη</p>
-              </div>
-              <button
-                onClick={() => setSelectedRes(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {selectedRes && (() => {
+        const { fee, platformCommission, managerCommission, netFee } = calculateFinancials(
+          selectedRes.fee,
+          selectedRes.platforms?.plat_commission || 0,
+          selectedRes.platforms?.commission || 0
+        );
 
-            {/* Modal Body */}
-            <div className="space-y-3.5 text-sm">
-              {/* Customer Box */}
-              <div className={`p-3.5 rounded-xl border flex items-start gap-3 ${
-                isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
-              }`}>
-                <User className="w-5 h-5 text-sky-500 mt-0.5 shrink-0" />
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <div className={`w-full max-w-lg rounded-2xl border p-6 space-y-5 shadow-2xl relative transition-colors ${
+              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+            }`}>
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
                 <div>
-                  <p className="text-xs text-slate-400 font-semibold uppercase">Πελάτης</p>
-                  <p className="font-bold text-base mt-0.5">{selectedRes.customers?.name || 'N/A'}</p>
-                  <p className="text-xs text-slate-400">{selectedRes.customers?.email || 'Χωρίς Email'}</p>
-                  <p className="text-xs text-slate-400">{selectedRes.customers?.phone || 'Χωρίς Τηλέφωνο'}</p>
+                  <h3 className="text-lg font-extrabold flex items-center gap-2">
+                    <span>Κράτηση #{selectedRes.reser_id}</span>
+                    {selectedRes.canceled ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">Ακυρώθηκε</span>
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Ενεργή</span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-400">Πληροφορίες κράτησης & πελάτη</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRes(null)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              {/* Dates & Visitors */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="flex items-center gap-1.5 text-slate-400 text-xs font-semibold mb-1">
-                    <CalendarIcon className="w-4 h-4 text-indigo-400" />
-                    <span>Ημερομηνίες</span>
+              {/* Modal Body */}
+              <div className="space-y-3.5 text-sm">
+                {/* Customer Box */}
+                <div className={`p-3.5 rounded-xl border flex items-start gap-3 ${
+                  isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <User className="w-5 h-5 text-sky-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-400 font-semibold uppercase">Πελάτης</p>
+                    <p className="font-bold text-base mt-0.5">{selectedRes.customers?.name || 'N/A'}</p>
+                    <p className="text-xs text-slate-400">{selectedRes.customers?.email || 'Χωρίς Email'}</p>
+                    <p className="text-xs text-slate-400">{selectedRes.customers?.phone || 'Χωρίς Τηλέφωνο'}</p>
                   </div>
-                  <p className="text-xs font-bold">{formatDateDisplay(selectedRes.start_date)} ➔ {formatDateDisplay(selectedRes.end_date)}</p>
                 </div>
 
-                <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="flex items-center gap-1.5 text-slate-400 text-xs font-semibold mb-1">
-                    <Users className="w-4 h-4 text-emerald-400" />
-                    <span>Επισκέπτες</span>
+                {/* Dates & Visitors */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center gap-1.5 text-slate-400 text-xs font-semibold mb-1">
+                      <CalendarIcon className="w-4 h-4 text-indigo-400" />
+                      <span>Ημερομηνίες</span>
+                    </div>
+                    <p className="text-xs font-bold">{formatDateDisplay(selectedRes.start_date)} ➔ {formatDateDisplay(selectedRes.end_date)}</p>
                   </div>
-                  <p className="text-xs font-bold">{selectedRes.num_of_visitors} Ενήλικες {selectedRes.kids > 0 && `, ${selectedRes.kids} Παιδιά`}</p>
+
+                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center gap-1.5 text-slate-400 text-xs font-semibold mb-1">
+                      <Users className="w-4 h-4 text-emerald-400" />
+                      <span>Επισκέπτες</span>
+                    </div>
+                    <p className="text-xs font-bold">{selectedRes.num_of_visitors} Ενήλικες {selectedRes.kids > 0 && `, ${selectedRes.kids} Παιδιά`}</p>
+                  </div>
                 </div>
+
+                {/* Financial Breakdown (Matching Exact User Formulas) */}
+                <div className={`p-3.5 rounded-xl border space-y-2 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400">Πλατφόρμα:</span>
+                    <span className="text-sky-400 font-bold">{selectedRes.platforms?.name}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400">Αρχικό Fee:</span>
+                    <span className="font-semibold">€{fee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400">Προμήθεια Πλατφόρμας:</span>
+                    <span className="text-rose-400 font-semibold">-€{platformCommission.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400">Προμήθεια Manager:</span>
+                    <span className="text-indigo-400 font-semibold">-€{managerCommission.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-slate-800 pt-2 text-base font-bold">
+                    <span>Καθαρό Ποσό (Net Fee):</span>
+                    <span className="text-emerald-500">€{netFee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                {(selectedRes.notes || selectedRes.comments) && (
+                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center gap-1.5 text-slate-400 text-xs font-semibold mb-1">
+                      <FileText className="w-4 h-4 text-amber-400" />
+                      <span>Σημειώσεις</span>
+                    </div>
+                    <p className="text-xs italic text-slate-300">{selectedRes.notes || selectedRes.comments}</p>
+                  </div>
+                )}
               </div>
 
-              {/* Financials */}
-              <div className={`p-3.5 rounded-xl border space-y-2 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Πλατφόρμα:</span>
-                  <span className="text-sky-400 font-bold">{selectedRes.platforms?.name}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Προκαταβολή:</span>
-                  <span className="font-semibold">€{selectedRes.advanced_payment || 0}</span>
-                </div>
-                <div className="flex items-center justify-between border-t border-slate-800 pt-2 text-base font-bold">
-                  <span>Συνολικό Ποσό:</span>
-                  <span className="text-emerald-500">€{Number(selectedRes.fee).toLocaleString('el-GR', { minimumFractionDigits: 2 })}</span>
-                </div>
+              {/* Modal Footer with Cancel / Reactivate Toggle Button */}
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
+                {/* Cancel / Reactivate Toggle Button */}
+                <button
+                  type="button"
+                  disabled={updatingCancel}
+                  onClick={() => handleToggleCancel(selectedRes)}
+                  className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50 ${
+                    selectedRes.canceled
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
+                      : 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/20'
+                  }`}
+                >
+                  {updatingCancel ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : selectedRes.canceled ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Επαναφορά Κράτησης</span>
+                    </>
+                  ) : (
+                    <>
+                      <Ban className="w-4 h-4" />
+                      <span>Ακύρωση Κράτησης</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedRes(null)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Κλείσιμο
+                </button>
               </div>
-
-              {/* Notes */}
-              {(selectedRes.notes || selectedRes.comments) && (
-                <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="flex items-center gap-1.5 text-slate-400 text-xs font-semibold mb-1">
-                    <FileText className="w-4 h-4 text-amber-400" />
-                    <span>Σημειώσεις</span>
-                  </div>
-                  <p className="text-xs italic text-slate-300">{selectedRes.notes || selectedRes.comments}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="pt-2 text-right">
-              <button
-                onClick={() => setSelectedRes(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-bold transition-all"
-              >
-                Κλείσιμο
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
