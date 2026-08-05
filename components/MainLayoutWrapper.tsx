@@ -1,18 +1,31 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 
 export default function MainLayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { theme } = useAuth();
+  const router = useRouter();
+  const { user, initialized, theme } = useAuth();
 
   const isLoginPage = pathname === '/login';
 
+  useEffect(() => {
+    if (initialized && !user && !isLoginPage) {
+      router.replace('/login');
+    }
+  }, [initialized, user, isLoginPage, router]);
+
   if (isLoginPage) {
     return <>{children}</>;
+  }
+
+  // If user is not logged in and not on login page, don't render layout content while redirecting
+  if (!user) {
+    return null;
   }
 
   const isDark = theme === 'dark';
