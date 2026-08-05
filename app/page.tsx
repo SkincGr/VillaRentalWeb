@@ -13,10 +13,18 @@ import {
   Calendar as CalendarIcon, 
   Users, 
   FileText,
-  DollarSign,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Calculator
 } from 'lucide-react';
+
+export interface TaxKlimakaItem {
+  tax_klimaka_items_aid: number;
+  f_tax_klimaka_aid: number;
+  from_amount: number;
+  to_amount: number;
+  pososto: number;
+}
 
 // Helper to safely extract 4-digit Year string from any ISO date string (cross-browser / iOS Safari safe)
 function getYearFromIso(isoString: string | null | undefined): string {
@@ -67,11 +75,35 @@ function calculateFinancials(feeNum: number, platCommRate: number, managerCommRa
   };
 }
 
+// Progressive Tax Calculation algorithm (Tax_Klimaka_Items for Natural Person / f_tax_klimaka_aid: 1)
+function calculateProgressiveTax(taxableGrossFee: number, items: TaxKlimakaItem[]): number {
+  if (taxableGrossFee <= 0) return 0;
+  
+  // Default fallback brackets if API items not loaded yet
+  const brackets = items.length > 0 
+    ? items.filter(i => i.f_tax_klimaka_aid === 1).sort((a, b) => a.from_amount - b.from_amount)
+    : [
+        { tax_klimaka_items_aid: 1, f_tax_klimaka_aid: 1, from_amount: 0, to_amount: 12000, pososto: 15 },
+        { tax_klimaka_items_aid: 2, f_tax_klimaka_aid: 1, from_amount: 12000, to_amount: 25000, pososto: 35 },
+        { tax_klimaka_items_aid: 3, f_tax_klimaka_aid: 1, from_amount: 25000, to_amount: 1000000, pososto: 45 }
+      ];
+
+  let totalTax = 0;
+  for (const b of brackets) {
+    if (taxableGrossFee > b.from_amount) {
+      const taxableInBracket = Math.min(taxableGrossFee, b.to_amount) - b.from_amount;
+      totalTax += taxableInBracket * (b.pososto / 100);
+    }
+  }
+  return totalTax;
+}
+
 export default function ReservationsPage() {
   const { user, role, ownerId, selectedHouseId: globalSelectedHouseId, assignedHouseIds, theme } = useAuth();
   
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [houses, setHouses] = useState<House[]>([]);
+  const [taxItems, setTaxItems] = useState<TaxKlimakaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingCancel, setUpdatingCancel] = useState(false);
 
@@ -103,6 +135,10 @@ export default function ReservationsPage() {
       
       if (json.reservations) {
         setReservations(json.reservations);
+      }
+
+      if (json.taxKlimakaItems) {
+        setTaxItems(json.taxKlimakaItems);
       }
     } catch (err) {
       console.error('Fetch error:', err);
@@ -184,21 +220,33 @@ export default function ReservationsPage() {
     return true;
   });
 
-  // Counters & Net Income Sum
+  // Counters
   const totalCount = filteredReservations.length;
   const cancelledCount = filteredReservations.filter(r => r.canceled).length;
 
-  // Sum of netFee for all active (non-canceled) reservations
-  const totalNetIncome = filteredReservations
-    .filter(r => !r.canceled)
-    .reduce((sum, res) => {
-      const { netFee } = calculateFinancials(
-        res.fee,
-        res.platforms?.plat_commission || 0,
-        res.platforms?.commission || 0
-      );
-      return sum + netFee;
-    }, 0);
+  // Active (non-canceled) reservations
+  const activeReservations = filteredReservations.filter(r => !r.canceled);
+
+  // 1. Sum of NetFee for all active reservations
+  const totalNetIncome = activeReservations.reduce((sum, res) => {
+    const { netFee } = calculateFinancials(
+      res.fee,
+      res.platforms?.plat_commission || 0,
+      res.platforms?.commission || 0
+    );
+    return sum + netFee;
+  }, 0);
+
+  // 2. Sum of Fee for taxable platforms (Platforms.tax_able === true)
+  const taxableGrossFee = activeReservations
+    .filter(r => Boolean(r.platforms?.tax_able))
+    .reduce((sum, res) => sum + Number(res.fee || 0), 0);
+
+  // 3. Calculate Tax Amount using Progressive Tax Scale
+  const taxAmount = calculateProgressiveTax(taxableGrossFee, taxItems);
+
+  // 4. Calculate Net Income (After Tax) = totalNetIncome - taxAmount
+  const netIncomeAfterTax = totalNetIncome - taxAmount;
 
   const isDark = theme === 'dark';
 
@@ -271,11 +319,11 @@ export default function ReservationsPage() {
           </button>
         </div>
 
-        {/* Counter & Total Net Income Line */}
-        <div className={`mt-3 pt-3 border-t text-xs font-semibold flex flex-wrap items-center justify-between gap-2 ${
+        {/* Counter & Financial Summary Line: Reservations | Income | Net Income (Tax) */}
+        <div className={`mt-3 pt-3 border-t text-xs font-semibold flex flex-wrap items-center justify-between gap-2.5 ${
           isDark ? 'border-slate-800 text-slate-400' : 'border-sky-200/80 text-sky-900'
         }`}>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div>
               <span>Reservations: </span>
               <span className="font-bold text-sky-500">{totalCount}</span>
@@ -285,6 +333,16 @@ export default function ReservationsPage() {
               <span>Income: </span>
               <span className="font-extrabold text-emerald-400">
                 €{totalNetIncome.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <span>|</span>
+            <div className="flex items-center gap-1">
+              <span>Net Income: </span>
+              <span className="font-extrabold text-indigo-400">
+                €{netIncomeAfterTax.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+              </span>
+              <span className="text-[11px] text-slate-400 font-normal">
+                (€{taxAmount.toLocaleString('el-GR', { minimumFractionDigits: 2 })} φόρος)
               </span>
             </div>
           </div>
