@@ -2,19 +2,19 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Building2, Sun, Moon, Sparkles, UserCheck, ShieldCheck, ArrowRight, Lock, Mail, KeyRound, AlertCircle } from 'lucide-react';
+import { Building2, Sun, Moon, Sparkles, ShieldCheck, ArrowRight, Lock, Mail, KeyRound, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const { login, theme, toggleTheme } = useAuth();
 
-  const [email, setEmail] = useState('skinkon@gmail.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!email || !password) {
+    if (!email.trim() || !password.trim()) {
       setError('Παρακαλώ συμπληρώστε email και κωδικό πρόσβασης');
       return;
     }
@@ -96,7 +96,7 @@ export default function LoginPage() {
         <div className="relative z-10 my-auto py-12">
           <span className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-sky-400/10 border border-sky-400/20 text-sky-300 mb-6">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            Ασφαλής Σύνδεση & Απομόνωση Δεδομένων Ανά Ιδιοκτήτη
+            Ασφαλής Σύνδεση & Απομόνωση Δεδομένων
           </span>
           <h2 className="text-5xl font-black leading-tight tracking-tight mb-6">
             Προστατευμένη<br />
@@ -104,7 +104,7 @@ export default function LoginPage() {
             κρατήσεις σας.
           </h2>
           <p className="text-sky-100/70 text-base leading-relaxed max-w-md">
-            Κάθε εγγεγραμμένος ιδιοκτήτης έχει αποκλειστική πρόσβαση μόνο στα δικά του ακίνητα και οικονομικά στοιχεία.
+            Εισάγετε τα στοιχεία σας για να αποκτήσετε πρόσβαση στα ακίνητα και στα οικονομικά σας στοιχεία.
           </p>
         </div>
 
@@ -130,33 +130,19 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <h2 className="text-3xl font-extrabold tracking-tight">Σύνδεση Ιδιοκτήτη</h2>
+            <h2 className="text-3xl font-extrabold tracking-tight">Σύνδεση στην Εφαρμογή</h2>
             <p className={`text-sm mt-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              Εισάγετε το email και τον κωδικό πρόσβασής σας
+              Εισάγετε το email και τον κωδικό πρόσβασής σας για είσοδο
             </p>
           </div>
 
-          {/* Account Presets Notice */}
-          <div className={`p-4 rounded-2xl border text-xs leading-relaxed space-y-2 ${
-            isDark ? 'bg-indigo-950/40 border-indigo-800/60 text-indigo-200' : 'bg-indigo-50 border-indigo-200 text-indigo-900'
-          }`}>
-            <div className="font-bold flex items-center gap-2 text-sm text-indigo-400">
-              <UserCheck className="w-4 h-4" />
-              <span>Εγγεγραμμένος Λογαριασμός Ιδιοκτήτη:</span>
-            </div>
-            <div className="space-y-1 font-mono text-[11px]">
-              <p>👤 <strong>Ιδιοκτήτης:</strong> skinkon@gmail.com</p>
-              <p>🔑 <strong>Κωδικός:</strong> owner2026password</p>
-            </div>
-          </div>
-
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className={`block text-xs font-semibold uppercase mb-1.5 ${
                 isDark ? 'text-slate-400' : 'text-slate-700'
               }`}>
-                Email Ιδιοκτήτη
+                Email
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
@@ -164,7 +150,7 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                  placeholder="skinkon@gmail.com"
+                  placeholder="Πληκτρολογήστε το email σας..."
                   className={`w-full border rounded-xl pl-10 pr-4 py-3 text-sm transition-all focus:outline-none focus:border-sky-500 font-medium ${
                     isDark 
                       ? 'bg-slate-900/80 border-slate-800 text-white placeholder-slate-500' 
@@ -187,7 +173,7 @@ export default function LoginPage() {
                   type="password"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                  placeholder="Εισάγετε κωδικό..."
+                  placeholder="••••••••"
                   className={`w-full border rounded-xl pl-10 pr-4 py-3 text-sm transition-all focus:outline-none focus:border-sky-500 font-medium ${
                     isDark 
                       ? 'bg-slate-900/80 border-slate-800 text-white placeholder-slate-500' 
@@ -214,27 +200,12 @@ export default function LoginPage() {
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
               ) : (
                 <>
-                  <span>Είσοδος στην Εφαρμογή</span>
+                  <span>Είσοδος</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </form>
-
-          {/* Quick Auto Fill Button */}
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => {
-                setEmail('skinkon@gmail.com');
-                setPassword('owner2026password');
-                setError('');
-              }}
-              className="w-full p-2.5 rounded-xl border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 text-xs font-bold transition-all text-center cursor-pointer"
-            >
-              ⚡ Αυτόματη Συμπλήρωση Διαπιστευτηρίων Ιδιοκτήτη
-            </button>
-          </div>
         </div>
       </div>
     </div>

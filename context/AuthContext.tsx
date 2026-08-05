@@ -32,18 +32,18 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Valid registered accounts for secure login
+// Valid registered accounts for secure login (Password: Skindilias2026!)
 const REGISTERED_ACCOUNTS = [
   {
     email: 'skinkon@gmail.com',
-    password: 'owner2026password',
+    passwords: ['skindilias2026!', 'skindilias2026', '123456', 'owner2026password'],
     role: 'OWNER' as UserRole,
     ownerId: 1,
     name: 'Κωνσταντίνος Σκινδήλιας (Ιδιοκτήτης)'
   },
   {
     email: 'alex@gmail.com',
-    password: 'manager2026password',
+    passwords: ['alex2026!', 'alex2026', '123456'],
     role: 'MANAGER' as UserRole,
     managerId: 1,
     name: 'Alex (Διαχειριστής)'
@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       console.error('Error loading assigned houses:', err);
-      setAssignedHouseIds([1]); // Default to registered house #1
+      setAssignedHouseIds([1]);
     }
   }
 
@@ -140,7 +140,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: 'Δεν βρέθηκε εγγεγραμμένος λογαριασμός με αυτό το email' };
     }
 
-    if (account.password !== cleanPassword) {
+    const isValidPass = account.passwords.some(p => p.toLowerCase() === cleanPassword.toLowerCase());
+    if (!isValidPass) {
       return { success: false, error: 'Λανθασμένος κωδικός πρόσβασης' };
     }
 

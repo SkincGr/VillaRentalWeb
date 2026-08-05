@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import MobileBottomNav from '@/components/MobileBottomNav';
+import { Lock } from 'lucide-react';
 
 export default function MainLayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -24,9 +25,16 @@ export default function MainLayoutWrapper({ children }: { children: React.ReactN
     return <>{children}</>;
   }
 
-  // If user is not logged in and not on login page, don't render layout content while redirecting
-  if (!user) {
-    return null;
+  // If user is not logged in or auth is initializing, lock the screen and redirect to /login
+  if (!initialized || !user) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-3">
+        <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+          <Lock className="w-6 h-6 animate-pulse" />
+        </div>
+        <p className="text-xs font-semibold text-slate-400">Απαιτείται σύνδεση με κωδικό πρόσβασης...</p>
+      </div>
+    );
   }
 
   const isDark = theme === 'dark';
