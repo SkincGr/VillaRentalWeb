@@ -14,7 +14,6 @@ import {
   Users, 
   FileText,
   DollarSign,
-  Percent,
   CheckCircle2,
   RefreshCw
 } from 'lucide-react';
@@ -185,9 +184,21 @@ export default function ReservationsPage() {
     return true;
   });
 
-  // Counters
+  // Counters & Net Income Sum
   const totalCount = filteredReservations.length;
   const cancelledCount = filteredReservations.filter(r => r.canceled).length;
+
+  // Sum of netFee for all active (non-canceled) reservations
+  const totalNetIncome = filteredReservations
+    .filter(r => !r.canceled)
+    .reduce((sum, res) => {
+      const { netFee } = calculateFinancials(
+        res.fee,
+        res.platforms?.plat_commission || 0,
+        res.platforms?.commission || 0
+      );
+      return sum + netFee;
+    }, 0);
 
   const isDark = theme === 'dark';
 
@@ -260,14 +271,24 @@ export default function ReservationsPage() {
           </button>
         </div>
 
-        {/* Counter Info Line */}
-        <div className={`mt-3 pt-3 border-t text-xs font-semibold flex items-center justify-between ${
+        {/* Counter & Total Net Income Line */}
+        <div className={`mt-3 pt-3 border-t text-xs font-semibold flex flex-wrap items-center justify-between gap-2 ${
           isDark ? 'border-slate-800 text-slate-400' : 'border-sky-200/80 text-sky-900'
         }`}>
-          <div>
-            <span>Reservations: </span>
-            <span className="font-bold text-sky-500">{totalCount}</span>
+          <div className="flex items-center gap-3">
+            <div>
+              <span>Reservations: </span>
+              <span className="font-bold text-sky-500">{totalCount}</span>
+            </div>
+            <span>|</span>
+            <div>
+              <span>Income: </span>
+              <span className="font-extrabold text-emerald-400">
+                €{totalNetIncome.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
           </div>
+
           {cancelledCount > 0 && (
             <div className="flex items-center gap-1 text-rose-500">
               <Ban className="w-3.5 h-3.5" />
