@@ -13,9 +13,6 @@ import {
   X,
   CalendarCheck,
   Calendar,
-  Users,
-  BarChart3,
-  Receipt,
   Sparkles
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -23,12 +20,10 @@ import { supabase, House } from '@/lib/supabaseClient';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const navItems = [
+// Mobile menu items restricted to primary core items (Option A: Κρατήσεις & Ημερολόγιο)
+const mobileNavItems = [
   { name: 'Κρατήσεις', href: '/', icon: CalendarCheck },
-  { name: 'Ημερολόγιο', href: '/calendar', icon: Calendar },
-  { name: 'Master Data', href: '/master-data', icon: Users },
-  { name: 'Αναλυτικά', href: '/analytics', icon: BarChart3 },
-  { name: 'Έξοδα & Φόροι', href: '/expenses', icon: Receipt },
+  { name: 'Ημερολόγιο', href: '/calendar', icon: Calendar }
 ];
 
 export default function Header() {
@@ -160,7 +155,7 @@ export default function Header() {
         </div>
       </header>
 
-      {/* ── MOBILE SLIDING DRAWER MENU (When Hamburger is clicked) ── */}
+      {/* ── MOBILE SLIDING DRAWER MENU (Option A: Primary Items Only) ── */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 md:hidden flex flex-col bg-slate-950/95 backdrop-blur-xl animate-in fade-in duration-200">
           {/* Top Bar of Drawer */}
@@ -174,7 +169,7 @@ export default function Header() {
                   Villa Rental
                   <Sparkles className="w-3.5 h-3.5 text-sky-400" />
                 </h2>
-                <p className="text-[10px] text-slate-400">Management Menu</p>
+                <p className="text-[10px] text-slate-400">Mobile Menu</p>
               </div>
             </div>
 
@@ -188,11 +183,11 @@ export default function Header() {
           </div>
 
           {/* Navigation Items in Drawer */}
-          <div className="p-4 space-y-2 flex-1 overflow-y-auto">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 px-2 mb-2">
-              Μενού Πλοήγησης
+          <div className="p-4 space-y-3 flex-1 overflow-y-auto">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 px-2 mb-1">
+              Βασικό Μενού
             </p>
-            {navItems.map((item) => {
+            {mobileNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
               return (
@@ -200,7 +195,7 @@ export default function Header() {
                   key={item.name}
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl text-base font-bold transition-all ${
+                  className={`flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-base font-extrabold transition-all ${
                     isActive
                       ? 'bg-gradient-to-r from-sky-500/25 to-indigo-500/15 text-sky-400 border border-sky-500/40 shadow-md shadow-sky-500/10'
                       : 'text-slate-300 hover:text-white hover:bg-slate-900'
