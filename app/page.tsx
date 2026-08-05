@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
-import { supabase, Reservation, House } from '@/lib/supabaseClient';
+import { Reservation, House } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { 
   Eye, 
@@ -62,37 +62,27 @@ export default function ReservationsPage() {
 
   useEffect(() => {
     fetchData();
-  }, [role, ownerId, assignedHouseIds]);
+  }, [role, ownerId]);
 
   async function fetchData() {
     setLoading(true);
     try {
-      // Fetch houses
-      let houseQuery = supabase.from('houses').select('*');
-      if (assignedHouseIds.length > 0) {
-        houseQuery = houseQuery.in('house_aid', assignedHouseIds);
+      const res = await fetch('/api/reservations', { cache: 'no-store' });
+      const json = await res.json();
+      
+      if (json.houses) {
+        let filteredHouses = json.houses;
+        if (assignedHouseIds.length > 0) {
+          filteredHouses = json.houses.filter((h: House) => assignedHouseIds.includes(h.house_aid));
+        }
+        setHouses(filteredHouses);
       }
-      const { data: houseData } = await houseQuery;
-      setHouses(houseData || []);
-
-      // Fetch reservations with joins
-      const { data: resData, error } = await supabase
-        .from('reservations')
-        .select(`
-          *,
-          customers (*),
-          platforms (*),
-          houses (*)
-        `)
-        .order('start_date', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching reservations:', error);
-      } else {
-        setReservations(resData || []);
+      
+      if (json.reservations) {
+        setReservations(json.reservations);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Fetch error:', err);
     } finally {
       setLoading(false);
     }
