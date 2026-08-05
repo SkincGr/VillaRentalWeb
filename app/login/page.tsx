@@ -24,6 +24,19 @@ export default function LoginPage() {
     }
   };
 
+  const handleQuickLogin = async (roleToUse: UserRole, emailToUse: string) => {
+    setLoading(true);
+    setError('');
+    try {
+      await login(emailToUse, roleToUse);
+      router.push('/');
+    } catch (err) {
+      setError('Σφάλμα σύνδεσης');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!email || !password) {
@@ -37,8 +50,7 @@ export default function LoginPage() {
     try {
       const success = await login(email, role);
       if (success) {
-        router.replace('/');
-        router.refresh();
+        router.push('/');
       } else {
         setError('Λάθος διαπιστευτήρια πρόσβασης');
       }
@@ -58,6 +70,7 @@ export default function LoginPage() {
       {/* Top Right Theme Toggle */}
       <div className="absolute top-5 right-5 z-20">
         <button
+          type="button"
           onClick={toggleTheme}
           className={`p-2.5 rounded-xl border transition-all flex items-center gap-2 text-xs font-semibold ${
             isDark 
@@ -253,9 +266,10 @@ export default function LoginPage() {
             )}
 
             <button
-              type="submit"
+              type="button"
+              onClick={() => handleSubmit()}
               disabled={loading}
-              className="w-full bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-bold py-3.5 rounded-xl hover:from-sky-400 hover:to-indigo-500 transition-all shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+              className="w-full bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-bold py-3.5 rounded-xl hover:from-sky-400 hover:to-indigo-500 transition-all shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 text-sm disabled:opacity-50 cursor-pointer"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -276,8 +290,8 @@ export default function LoginPage() {
             <div className="grid grid-cols-2 gap-2 text-xs">
               <button
                 type="button"
-                onClick={() => { handleRoleChange('MANAGER'); setEmail('alex@gmail.com'); }}
-                className={`p-2.5 rounded-xl border text-left transition-all ${
+                onClick={() => handleQuickLogin('MANAGER', 'alex@gmail.com')}
+                className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   role === 'MANAGER' 
                     ? 'border-sky-500/40 bg-sky-500/10 text-sky-300' 
                     : isDark ? 'border-slate-800 bg-slate-900/40 text-slate-400' : 'border-slate-200 bg-white text-slate-700'
@@ -289,8 +303,8 @@ export default function LoginPage() {
 
               <button
                 type="button"
-                onClick={() => { handleRoleChange('OWNER'); setEmail('skinkon@gmail.com'); }}
-                className={`p-2.5 rounded-xl border text-left transition-all ${
+                onClick={() => handleQuickLogin('OWNER', 'skinkon@gmail.com')}
+                className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   role === 'OWNER' 
                     ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300' 
                     : isDark ? 'border-slate-800 bg-slate-900/40 text-slate-400' : 'border-slate-200 bg-white text-slate-700'

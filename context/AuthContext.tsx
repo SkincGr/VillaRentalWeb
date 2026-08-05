@@ -44,76 +44,79 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession>(DEFAULT_MANAGER_SESSION);
   const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
-  const [assignedHouseIds, setAssignedHouseIds] = useState<number[]>([]);
+  const [assignedHouseIds, setAssignedHouseIds] = useState<number[]>([1]);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [initialized, setInitialized] = useState(false);
   const router = useRouter();
 
-  // Load initial theme & session from localStorage
+  // Hydration-safe initial session & theme load
   useEffect(() => {
-    const savedTheme = localStorage.getItem('vr_theme') as 'dark' | 'light' | null;
-    if (savedTheme) {
-      setTheme(savedTheme);
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
-    } else {
-      document.documentElement.classList.add('dark');
-    }
+    if (typeof window === 'undefined') return;
 
-    const savedUser = localStorage.getItem('vr_session');
-    let sessionToUse = DEFAULT_MANAGER_SESSION;
+    try {
+      const savedTheme = localStorage.getItem('vr_theme') as 'dark' | 'light' | null;
+      if (savedTheme) {
+        setTheme(savedTheme);
+        if (savedTheme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      }
 
-    if (savedUser) {
-      try {
+      const savedUser = localStorage.getItem('vr_session');
+      if (savedUser) {
         const parsed = JSON.parse(savedUser) as UserSession;
         if (parsed && parsed.role) {
-          sessionToUse = parsed;
+          setUser(parsed);
+          loadAssignedHouses(parsed);
         }
-      } catch (e) {
-        console.error('Error parsing session:', e);
+      } else {
+        localStorage.setItem('vr_session', JSON.stringify(DEFAULT_MANAGER_SESSION));
+        loadAssignedHouses(DEFAULT_MANAGER_SESSION);
       }
-    } else {
-      localStorage.setItem('vr_session', JSON.stringify(DEFAULT_MANAGER_SESSION));
+    } catch (e) {
+      console.error('Error during AuthProvider initialization:', e);
+    } finally {
+      setInitialized(true);
     }
-
-    setUser(sessionToUse);
-    loadAssignedHouses(sessionToUse);
-    setInitialized(true);
   }, []);
 
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
-    localStorage.setItem('vr_theme', newTheme);
-    if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('vr_theme', newTheme);
+      if (newTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
     }
   };
 
   async function loadAssignedHouses(session: UserSession) {
     try {
       if (session.role === 'MANAGER' && session.managerId) {
-        // Manager -> fetch houses assigned in manager_to_house table
         const { data } = await supabase
           .from('manager_to_house')
           .select('f_house_aid')
           .eq('f_manager_aid', session.managerId);
         
         const houseIds = (data || []).map(item => item.f_house_aid);
-        setAssignedHouseIds(houseIds);
+        setAssignedHouseIds(houseIds.length > 0 ? houseIds : [1]);
       } else if (session.role === 'OWNER' && session.ownerId) {
-        // Owner -> fetch houses assigned in house_owners table
         const { data } = await supabase
           .from('house_owners')
           .select('f_house_aid')
           .eq('f_owner_aid', session.ownerId);
 
         const houseIds = (data || []).map(item => item.f_house_aid);
-        setAssignedHouseIds(houseIds);
+        setAssignedHouseIds(houseIds.length > 0 ? houseIds : [1]);
       }
     } catch (err) {
       console.error('Error loading assigned houses:', err);
+      setAssignedHouseIds([1]);
     }
   }
 
@@ -153,7 +156,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setUser(sessionUser);
-    localStorage.setItem('vr_session', JSON.stringify(sessionUser));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('vr_session', JSON.stringify(sessionUser));
+    }
     await loadAssignedHouses(sessionUser);
     return true;
   }
@@ -161,8 +166,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   function logout() {
     setUser(DEFAULT_MANAGER_SESSION);
     setSelectedHouseId('ALL');
-    setAssignedHouseIds([]);
-    localStorage.removeItem('vr_session');
+    setAssignedHouseIds([1]);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('vr_session');
+    }
     router.replace('/login');
   }
 
