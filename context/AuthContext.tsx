@@ -27,6 +27,8 @@ interface AuthContextType {
   toggleTheme: () => void;
   initialized: boolean;
   siteUnlocked: boolean;
+  sitePasscode: string;
+  updateSitePasscode: (newPasscode: string) => void;
   unlockSite: (passcode: string) => boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
@@ -35,7 +37,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Valid site security passcodes (Layer 1 Gatekeeper)
-const SITE_SECURITY_PASSCODES = ['2026', 'skindilias', 'skindilias2026', 'villa2026', '1234'];
+const DEFAULT_SITE_PASSCODES = ['2026', 'skindilias', 'skindilias2026', 'villa2026', '1234'];
 
 // Valid registered accounts for user login (Layer 2)
 const REGISTERED_ACCOUNTS = [
@@ -58,6 +60,7 @@ const REGISTERED_ACCOUNTS = [
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(null);
   const [siteUnlocked, setSiteUnlocked] = useState<boolean>(false);
+  const [customSitePasscode, setCustomSitePasscode] = useState<string>('2026');
   const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
   const [assignedHouseIds, setAssignedHouseIds] = useState<number[]>([]);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -79,10 +82,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      const savedCustomPass = localStorage.getItem('vr_custom_site_passcode');
+      if (savedCustomPass) {
+        setCustomSitePasscode(savedCustomPass);
+      }
+
       // Check Site Gatekeeper Status
       const savedSiteUnlock = sessionStorage.getItem('vr_site_unlocked');
       if (savedSiteUnlock === 'true') {
         setSiteUnlocked(true);
+        document.cookie = "vr_site_unlocked=true; path=/; max-age=86400; SameSite=Lax";
       }
 
       const savedUser = localStorage.getItem('vr_session');
@@ -113,13 +122,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Update site passcode dynamically
+  const updateSitePasscode = (newPasscode: string) => {
+    setCustomSitePasscode(newPasscode.trim());
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('vr_custom_site_passcode', newPasscode.trim());
+    }
+  };
+
   // Layer 1: Unlock Site Protection Gatekeeper
   const unlockSite = (passcodeInput: string): boolean => {
     const cleanPass = passcodeInput.trim().toLowerCase();
-    if (SITE_SECURITY_PASSCODES.includes(cleanPass)) {
+    const validPasscodes = [...DEFAULT_SITE_PASSCODES, customSitePasscode.toLowerCase()];
+
+    if (validPasscodes.includes(cleanPass)) {
       setSiteUnlocked(true);
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('vr_site_unlocked', 'true');
+        document.cookie = "vr_site_unlocked=true; path=/; max-age=86400; SameSite=Lax";
       }
       return true;
     }
@@ -207,6 +227,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(sessionUser);
     if (typeof window !== 'undefined') {
       localStorage.setItem('vr_session', JSON.stringify(sessionUser));
+      document.cookie = "vr_session=true; path=/; max-age=86400; SameSite=Lax";
     }
     await loadAssignedHouses(sessionUser);
     return { success: true };
@@ -218,6 +239,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAssignedHouseIds([]);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('vr_session');
+      sessionStorage.removeItem('vr_site_unlocked');
+      document.cookie = "vr_site_unlocked=; path=/; max-age=0";
+      document.cookie = "vr_session=; path=/; max-age=0";
     }
     router.replace('/login');
   }
@@ -236,6 +260,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         toggleTheme,
         initialized,
         siteUnlocked,
+        sitePasscode: customSitePasscode,
+        updateSitePasscode,
         unlockSite,
         login,
         logout
