@@ -164,7 +164,8 @@ function computePeriodFinancials(resList: Reservation[], taxItems: TaxKlimakaIte
     totalNetFee += netFee;
   });
 
-  const perivalon = totalDays * 15; // €15 / day
+  // Perivalon = taxableDays * €15
+  const perivalon = taxableDays * 15;
   const totalCommissions = totalPlatComm + totalMgrComm + perivalon;
   const tax = calculateProgressiveTax(taxableFee, taxItems);
   const netIncomeAfterTax = totalNetFee - tax;
@@ -683,10 +684,11 @@ export default function ReservationsPage() {
                   </span>
                 </div>
 
+                {/* Perivalon calculated ONLY on Taxable Days */}
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 flex items-center gap-1">
                     <Trees className="w-3.5 h-3.5 text-emerald-400" />
-                    Περιβάλλον ({actualFinancials.totalDays} ημ. * €15):
+                    Περιβάλλον ({actualFinancials.taxableDays} ημ. * €15):
                   </span>
                   <span className="font-semibold text-emerald-400">
                     €{actualFinancials.perivalon.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
