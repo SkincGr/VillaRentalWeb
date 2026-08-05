@@ -1,12 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth, UserRole } from '@/context/AuthContext';
 import { Building2, Sun, Moon, Sparkles, UserCheck, ShieldCheck, ArrowRight, Lock, Mail } from 'lucide-react';
 
 export default function LoginPage() {
-  const router = useRouter();
   const { login, theme, toggleTheme } = useAuth();
 
   const [role, setRole] = useState<UserRole>('MANAGER');
@@ -29,7 +27,7 @@ export default function LoginPage() {
     setError('');
     try {
       await login(emailToUse, roleToUse);
-      router.push('/');
+      window.location.href = '/';
     } catch (err) {
       setError('Σφάλμα σύνδεσης');
     } finally {
@@ -50,7 +48,7 @@ export default function LoginPage() {
     try {
       const success = await login(email, role);
       if (success) {
-        router.push('/');
+        window.location.href = '/';
       } else {
         setError('Λάθος διαπιστευτήρια πρόσβασης');
       }
@@ -176,7 +174,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => handleRoleChange('MANAGER')}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 role === 'MANAGER'
                   ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-lg shadow-sky-500/25'
                   : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
@@ -189,7 +187,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => handleRoleChange('OWNER')}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 role === 'OWNER'
                   ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-lg shadow-sky-500/25'
                   : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
