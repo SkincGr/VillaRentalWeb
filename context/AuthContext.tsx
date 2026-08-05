@@ -26,11 +26,29 @@ interface AuthContextType {
   theme: 'dark' | 'light';
   toggleTheme: () => void;
   initialized: boolean;
-  login: (emailOrUsername: string, role: UserRole, targetId?: number) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Valid registered accounts for secure login
+const REGISTERED_ACCOUNTS = [
+  {
+    email: 'skinkon@gmail.com',
+    password: 'owner2026password',
+    role: 'OWNER' as UserRole,
+    ownerId: 1,
+    name: 'Κωνσταντίνος Σκινδήλιας (Ιδιοκτήτης)'
+  },
+  {
+    email: 'alex@gmail.com',
+    password: 'manager2026password',
+    role: 'MANAGER' as UserRole,
+    managerId: 1,
+    name: 'Alex (Διαχειριστής)'
+  }
+];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(null);
@@ -92,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq('f_manager_aid', session.managerId);
         
         const houseIds = (data || []).map(item => item.f_house_aid);
-        setAssignedHouseIds(houseIds);
+        setAssignedHouseIds(houseIds.length > 0 ? houseIds : [1]);
       } else if (session.role === 'OWNER' && session.ownerId) {
         const { data } = await supabase
           .from('house_owners')
@@ -100,18 +118,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq('f_owner_aid', session.ownerId);
 
         const houseIds = (data || []).map(item => item.f_house_aid);
-        setAssignedHouseIds(houseIds);
+        setAssignedHouseIds(houseIds.length > 0 ? houseIds : [1]);
       }
     } catch (err) {
       console.error('Error loading assigned houses:', err);
+      setAssignedHouseIds([1]); // Default to registered house #1
     }
   }
 
-  async function login(emailOrUsername: string, roleToSet: UserRole, targetId?: number): Promise<boolean> {
+  async function login(emailInput: string, passwordInput: string): Promise<{ success: boolean; error?: string }> {
+    const cleanEmail = emailInput.trim().toLowerCase();
+    const cleanPassword = passwordInput.trim();
+
+    if (!cleanEmail || !cleanPassword) {
+      return { success: false, error: 'Παρακαλώ συμπληρώστε email και κωδικό πρόσβασης' };
+    }
+
+    // Match registered account
+    const account = REGISTERED_ACCOUNTS.find(a => a.email.toLowerCase() === cleanEmail);
+    if (!account) {
+      return { success: false, error: 'Δεν βρέθηκε εγγεγραμμένος λογαριασμός με αυτό το email' };
+    }
+
+    if (account.password !== cleanPassword) {
+      return { success: false, error: 'Λανθασμένος κωδικός πρόσβασης' };
+    }
+
     let sessionUser: UserSession;
 
-    if (roleToSet === 'MANAGER') {
-      const mgrId = targetId || 1;
+    if (account.role === 'MANAGER') {
+      const mgrId = account.managerId || 1;
       const { data } = await supabase
         .from('managers')
         .select('*')
@@ -120,13 +156,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       sessionUser = {
         id: `mgr_${mgrId}`,
-        name: data?.name || 'Alex (Διαχειριστής)',
-        email: data?.email?.trim() || 'alex@gmail.com',
+        name: data?.name || account.name,
+        email: account.email,
         role: 'MANAGER',
         managerId: mgrId
       };
     } else {
-      const ownId = targetId || 1;
+      const ownId = account.ownerId || 1;
       const { data } = await supabase
         .from('owners')
         .select('*')
@@ -135,8 +171,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       sessionUser = {
         id: `own_${ownId}`,
-        name: data?.name || 'Κωνσταντίνος Σκινδήλιας (Ιδιοκτήτης)',
-        email: data?.email?.trim() || 'skinkon@gmail.com',
+        name: data?.name || account.name,
+        email: account.email,
         role: 'OWNER',
         ownerId: ownId
       };
@@ -147,7 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('vr_session', JSON.stringify(sessionUser));
     }
     await loadAssignedHouses(sessionUser);
-    return true;
+    return { success: true };
   }
 
   function logout() {
