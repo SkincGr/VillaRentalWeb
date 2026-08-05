@@ -294,7 +294,7 @@ export default function ReservationsPage() {
     }
   };
 
-  // 1. BASE YEAR & HOUSE RESERVATIONS (ALL records for selected year & house, ignoring list toggles)
+  // 1. BASE YEAR & HOUSE RESERVATIONS (ALL records for selected year & house)
   const baseYearAndHouseReservations = reservations.filter((res) => {
     if (assignedHouseIds.length > 0 && res.f_house_aid) {
       if (!assignedHouseIds.includes(res.f_house_aid)) return false;
@@ -328,6 +328,18 @@ export default function ReservationsPage() {
   // Counters for the list view
   const listTotalCount = filteredReservations.length;
   const listCancelledCount = filteredReservations.filter(r => r.canceled).length;
+
+  // ── INCOME FOR THE SUMMARY BAR (Sum of Net Fee for non-canceled VISIBLE reservations on screen) ──
+  const visibleNetIncome = filteredReservations
+    .filter(r => !r.canceled)
+    .reduce((sum, res) => {
+      const { netFee } = calculateFinancials(
+        res.fee,
+        res.platforms?.plat_commission || 0,
+        res.platforms?.commission || 0
+      );
+      return sum + netFee;
+    }, 0);
 
   // ── FINANCIAL MODAL CALCULATIONS (Always uses ALL records for selected year & house!) ──
   const actualFinancials = computePeriodFinancials(baseYearAndHouseReservations, taxItems);
@@ -432,7 +444,7 @@ export default function ReservationsPage() {
           </div>
         </div>
 
-        {/* Counter & Summary Line: Reservations | Income | Financial Details Button */}
+        {/* Counter & Summary Line: Reservations | Income (Visible on Screen) | Financial Details Button */}
         <div className={`mt-3 pt-3 border-t text-xs font-semibold flex flex-wrap items-center justify-between gap-2.5 ${
           isDark ? 'border-slate-800 text-slate-400' : 'border-sky-200/80 text-sky-900'
         }`}>
@@ -447,7 +459,7 @@ export default function ReservationsPage() {
             <div>
               <span>Income: </span>
               <span className="font-extrabold text-emerald-400">
-                €{actualFinancials.totalNetFee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                €{visibleNetIncome.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
               </span>
             </div>
 
