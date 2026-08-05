@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
-import { Reservation, House, Platform } from '@/lib/supabaseClient';
+import { Reservation, House, Platform, Nationality } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { 
   Eye, 
@@ -26,7 +26,7 @@ import {
   Pencil,
   Trash2,
   Save,
-  Plus
+  Globe
 } from 'lucide-react';
 
 export interface TaxKlimakaItem {
@@ -209,6 +209,7 @@ export default function ReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [houses, setHouses] = useState<House[]>([]);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
+  const [nationalities, setNationalities] = useState<Nationality[]>([]);
   const [taxItems, setTaxItems] = useState<TaxKlimakaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -222,7 +223,7 @@ export default function ReservationsPage() {
   // Modals
   const [selectedRes, setSelectedRes] = useState<Reservation | null>(null);
   const [showFinancialModal, setShowFinancialModal] = useState<boolean>(false);
-  const [editingRes, setEditingRes] = useState<Partial<Reservation> & { customer_name?: string } | null>(null);
+  const [editingRes, setEditingRes] = useState<Partial<Reservation> & { customer_name?: string; f_nationallity_aid?: number } | null>(null);
   const [deletingResId, setDeletingResId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -253,6 +254,10 @@ export default function ReservationsPage() {
 
       if (json.platforms) {
         setPlatforms(json.platforms);
+      }
+
+      if (json.nationalities) {
+        setNationalities(json.nationalities);
       }
     } catch (err) {
       console.error('Fetch error:', err);
@@ -313,6 +318,7 @@ export default function ReservationsPage() {
       reser_id: res.reser_id,
       f_custom_id: res.f_custom_id,
       customer_name: res.customers?.name || '',
+      f_nationallity_aid: res.customers?.f_nationallity_aid || (res.customers?.nationality?.nationality_aid),
       start_date: formatDateInput(res.start_date),
       end_date: formatDateInput(res.end_date),
       fee: res.fee,
@@ -593,6 +599,7 @@ export default function ReservationsPage() {
             const endDisplay = formatDateDisplay(res.end_date);
             const monthBadge = getMonthBadge(res.start_date);
             const expired = isReservationExpired(res.end_date);
+            const nationalityName = res.customers?.nationality?.nationality || '';
             
             // Duration calculation
             let diffDays = 0;
@@ -628,6 +635,7 @@ export default function ReservationsPage() {
                 {/* Top Row: Customer Name & Month Badge */}
                 <div className="flex items-start justify-between gap-3">
                   <div>
+                    {/* Customer Name */}
                     <h3 className={`text-base font-extrabold tracking-tight flex items-center gap-2 ${
                       res.canceled 
                         ? 'line-through text-rose-500' 
@@ -636,6 +644,15 @@ export default function ReservationsPage() {
                       {res.canceled && <Ban className="w-4 h-4 text-rose-500 shrink-0" />}
                       <span>{res.customers?.name || 'Unknown Customer'}</span>
                     </h3>
+
+                    {/* Nationality Subtitle Line (Directly under Customer Name) */}
+                    {nationalityName && (
+                      <p className="text-xs font-semibold text-sky-400 mt-0.5 flex items-center gap-1">
+                        <Globe className="w-3.5 h-3.5 shrink-0 text-sky-400" />
+                        <span>{nationalityName}</span>
+                      </p>
+                    )}
+
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       {res.canceled && (
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-500 border border-rose-500/30">
@@ -755,18 +772,38 @@ export default function ReservationsPage() {
             </div>
 
             <form onSubmit={(e) => { e.preventDefault(); handleSaveEdit(); }} className="space-y-4 text-xs">
-              {/* Customer Name */}
-              <div>
-                <label className="block font-semibold mb-1 text-slate-400">Όνομα Πελάτη</label>
-                <input
-                  type="text"
-                  value={editingRes.customer_name || ''}
-                  onChange={(e) => setEditingRes({ ...editingRes, customer_name: e.target.value })}
-                  className={`w-full p-2.5 rounded-xl border font-semibold ${
-                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                  }`}
-                  required
-                />
+              {/* Customer Name & Nationality */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-400">Όνομα Πελάτη</label>
+                  <input
+                    type="text"
+                    value={editingRes.customer_name || ''}
+                    onChange={(e) => setEditingRes({ ...editingRes, customer_name: e.target.value })}
+                    className={`w-full p-2.5 rounded-xl border font-semibold ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    }`}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-400">Εθνικότητα</label>
+                  <select
+                    value={editingRes.f_nationallity_aid || ''}
+                    onChange={(e) => setEditingRes({ ...editingRes, f_nationallity_aid: Number(e.target.value) })}
+                    className={`w-full p-2.5 rounded-xl border font-semibold ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-sky-400' : 'bg-slate-50 border-slate-300 text-sky-600'
+                    }`}
+                  >
+                    <option value="">Επιλέξτε Εθνικότητα...</option>
+                    {nationalities.map(n => (
+                      <option key={n.nationality_aid} value={n.nationality_aid}>
+                        {n.nationality}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Dates Row */}
@@ -1138,6 +1175,7 @@ export default function ReservationsPage() {
           selectedRes.platforms?.plat_commission || 0,
           selectedRes.platforms?.commission || 0
         );
+        const natName = selectedRes.customers?.nationality?.nationality || '';
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
@@ -1176,7 +1214,13 @@ export default function ReservationsPage() {
                   <div>
                     <p className="text-xs text-slate-400 font-semibold uppercase">Πελάτης</p>
                     <p className="font-bold text-base mt-0.5">{selectedRes.customers?.name || 'N/A'}</p>
-                    <p className="text-xs text-slate-400">{selectedRes.customers?.email || 'Χωρίς Email'}</p>
+                    {natName && (
+                      <p className="text-xs font-semibold text-sky-400 mt-0.5 flex items-center gap-1">
+                        <Globe className="w-3.5 h-3.5 shrink-0 text-sky-400" />
+                        <span>{natName}</span>
+                      </p>
+                    )}
+                    <p className="text-xs text-slate-400 mt-1">{selectedRes.customers?.email || 'Χωρίς Email'}</p>
                     <p className="text-xs text-slate-400">{selectedRes.customers?.phone || 'Χωρίς Τηλέφωνο'}</p>
                   </div>
                 </div>

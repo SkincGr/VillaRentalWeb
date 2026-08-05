@@ -23,19 +23,26 @@ export async function POST(request: Request) {
       notes, 
       comments,
       f_custom_id,
-      customer_name
+      customer_name,
+      f_nationallity_aid
     } = body;
 
     if (!reser_id) {
       return NextResponse.json({ error: 'Missing reser_id' }, { status: 400 });
     }
 
-    // 1. If customer name updated and customer ID exists, update customer name
-    if (f_custom_id && customer_name) {
-      await supabase
-        .from('customers')
-        .update({ name: customer_name.trim() })
-        .eq('custom_id', f_custom_id);
+    // 1. If customer ID exists, update customer name & nationality
+    if (f_custom_id) {
+      const custUpdate: any = {};
+      if (customer_name) custUpdate.name = customer_name.trim();
+      if (f_nationallity_aid) custUpdate.f_nationallity_aid = Number(f_nationallity_aid);
+
+      if (Object.keys(custUpdate).length > 0) {
+        await supabase
+          .from('customers')
+          .update(custUpdate)
+          .eq('custom_id', f_custom_id);
+      }
     }
 
     // 2. Update reservation fields
