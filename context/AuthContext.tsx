@@ -36,8 +36,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Valid site security passcodes (Layer 1 Gatekeeper)
-const DEFAULT_SITE_PASSCODES = ['2026', 'skindilias', 'skindilias2026', 'villa2026', '1234'];
+// OFFICIAL SITE SECURITY PASSCODE (Layer 1 Gatekeeper)
+const OFFICIAL_SITE_PASSCODES = [
+  'lesvos#54#Mirina#81',
+  'lesvos#54#mirina#81',
+  '2026',
+  'skindilias'
+];
 
 // Valid registered accounts for user login (Layer 2)
 const REGISTERED_ACCOUNTS = [
@@ -60,7 +65,7 @@ const REGISTERED_ACCOUNTS = [
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(null);
   const [siteUnlocked, setSiteUnlocked] = useState<boolean>(false);
-  const [customSitePasscode, setCustomSitePasscode] = useState<string>('2026');
+  const [customSitePasscode, setCustomSitePasscode] = useState<string>('lesvos#54#Mirina#81');
   const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
   const [assignedHouseIds, setAssignedHouseIds] = useState<number[]>([]);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -132,10 +137,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Layer 1: Unlock Site Protection Gatekeeper
   const unlockSite = (passcodeInput: string): boolean => {
-    const cleanPass = passcodeInput.trim().toLowerCase();
-    const validPasscodes = [...DEFAULT_SITE_PASSCODES, customSitePasscode.toLowerCase()];
+    const cleanPass = passcodeInput.trim();
+    const validPasscodes = [...OFFICIAL_SITE_PASSCODES, customSitePasscode];
 
-    if (validPasscodes.includes(cleanPass)) {
+    if (validPasscodes.some(p => p.toLowerCase() === cleanPass.toLowerCase())) {
       setSiteUnlocked(true);
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('vr_site_unlocked', 'true');
