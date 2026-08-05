@@ -15,7 +15,8 @@ import {
   FileText,
   CheckCircle2,
   RefreshCw,
-  Calculator
+  Clock,
+  Layers
 } from 'lucide-react';
 
 export interface TaxKlimakaItem {
@@ -56,7 +57,15 @@ function getMonthBadge(isoString: string | null | undefined): string {
   return '';
 }
 
-// Helper to calculate exact financial metrics as requested:
+// Helper to check if a reservation date has already expired (end_date < today)
+function isReservationExpired(endDateIso: string | null | undefined): boolean {
+  if (!endDateIso) return false;
+  const todayStr = new Date().toISOString().split('T')[0]; // e.g. "2026-08-05"
+  const endStr = endDateIso.split('T')[0];
+  return endStr < todayStr;
+}
+
+// Helper to calculate exact financial metrics:
 // Platfor Commision = Fee * Platforms.PlatCommission
 // Manager Commision = (Fee - Platfor Commision) * Platforms.Commission
 // NetFee = Fee - Platfor Commision - Manager Commision
@@ -79,7 +88,6 @@ function calculateFinancials(feeNum: number, platCommRate: number, managerCommRa
 function calculateProgressiveTax(taxableGrossFee: number, items: TaxKlimakaItem[]): number {
   if (taxableGrossFee <= 0) return 0;
   
-  // Default fallback brackets if API items not loaded yet
   const brackets = items.length > 0 
     ? items.filter(i => i.f_tax_klimaka_aid === 1).sort((a, b) => a.from_amount - b.from_amount)
     : [
@@ -110,7 +118,8 @@ export default function ReservationsPage() {
   // Filters matching user request
   const [selectedYear, setSelectedYear] = useState<string>('2026');
   const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
-  const [hideCancelled, setHideCancelled] = useState(false);
+  const [onlyCurrent, setOnlyCurrent] = useState<boolean>(false); // Toggle: false = Όλα, true = Τρέχοντα
+  const [hideCancelled, setHideCancelled] = useState<boolean>(false);
 
   // Selected reservation for Eye modal
   const [selectedRes, setSelectedRes] = useState<Reservation | null>(null);
@@ -217,6 +226,11 @@ export default function ReservationsPage() {
       return false;
     }
 
+    // 5. Toggle Όλα / Τρέχοντα (Hides expired reservations when onlyCurrent === true)
+    if (onlyCurrent && isReservationExpired(res.end_date)) {
+      return false;
+    }
+
     return true;
   });
 
@@ -302,21 +316,41 @@ export default function ReservationsPage() {
             </div>
           </div>
 
-          {/* Toggle Hide Cancelled Button */}
-          <button
-            type="button"
-            onClick={() => setHideCancelled(!hideCancelled)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-              hideCancelled
-                ? 'bg-rose-500 text-white border-rose-600 shadow-sm'
-                : isDark
-                  ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white'
-                  : 'bg-slate-200/80 border-slate-300 text-slate-700 hover:bg-slate-300'
-            }`}
-          >
-            <Ban className="w-3.5 h-3.5" />
-            <span>{hideCancelled ? 'Show Cancelled' : 'Hide Cancelled'}</span>
-          </button>
+          {/* Action Buttons: Toggle Όλα/Τρέχοντα & Hide Cancelled */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* NEW TOGGLE: Όλα / Τρέχοντα */}
+            <button
+              type="button"
+              onClick={() => setOnlyCurrent(!onlyCurrent)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                onlyCurrent
+                  ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white border-indigo-500 shadow-sm shadow-indigo-500/20'
+                  : isDark
+                    ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white'
+                    : 'bg-slate-200/80 border-slate-300 text-slate-700 hover:bg-slate-300'
+              }`}
+              title={onlyCurrent ? 'Εμφάνιση μόνο τρεχουσών/μελλοντικών κρατήσεων' : 'Εμφάνιση όλων των κρατήσεων'}
+            >
+              {onlyCurrent ? <Clock className="w-3.5 h-3.5" /> : <Layers className="w-3.5 h-3.5" />}
+              <span>{onlyCurrent ? 'Τρέχοντα' : 'Όλα'}</span>
+            </button>
+
+            {/* Toggle Hide Cancelled Button */}
+            <button
+              type="button"
+              onClick={() => setHideCancelled(!hideCancelled)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                hideCancelled
+                  ? 'bg-rose-500 text-white border-rose-600 shadow-sm'
+                  : isDark
+                    ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white'
+                    : 'bg-slate-200/80 border-slate-300 text-slate-700 hover:bg-slate-300'
+              }`}
+            >
+              <Ban className="w-3.5 h-3.5" />
+              <span>{hideCancelled ? 'Show Cancelled' : 'Hide Cancelled'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Counter & Financial Summary Line: Reservations | Income | Net Income (Tax) */}
@@ -366,7 +400,7 @@ export default function ReservationsPage() {
         <div className={`p-12 text-center rounded-2xl border text-slate-400 ${
           isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'
         }`}>
-          <p className="text-sm">Δεν βρέθηκαν κρατήσεις για το έτος {selectedYear}.</p>
+          <p className="text-sm">Δεν βρέθηκαν κρατήσεις για τα επιλεγμένα φίλτρα ({selectedYear}).</p>
         </div>
       ) : (
         <div className="space-y-3.5">
@@ -374,6 +408,7 @@ export default function ReservationsPage() {
             const startDisplay = formatDateDisplay(res.start_date);
             const endDisplay = formatDateDisplay(res.end_date);
             const monthBadge = getMonthBadge(res.start_date);
+            const expired = isReservationExpired(res.end_date);
             
             // Duration calculation
             let diffDays = 0;
@@ -417,11 +452,18 @@ export default function ReservationsPage() {
                       {res.canceled && <Ban className="w-4 h-4 text-rose-500 shrink-0" />}
                       <span>{res.customers?.name || 'Unknown Customer'}</span>
                     </h3>
-                    {res.canceled && (
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-500 border border-rose-500/30">
-                        🚫 ΑΚΥΡΩΘΗΚΕ
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      {res.canceled && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-500 border border-rose-500/30">
+                          🚫 ΑΚΥΡΩΘΗΚΕ
+                        </span>
+                      )}
+                      {expired && !res.canceled && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+                          Έληξε
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Month Badge & Eye Button */}
