@@ -9,6 +9,8 @@ export interface House {
   house_aid: number;
   house_name: string;
   f_city_aid?: number;
+  start_period_date?: string | null; // e.g. '05-15' or '2026-05-15'
+  end_period_date?: string | null;   // e.g. '10-15' or '2026-10-15'
 }
 
 export interface Platform {

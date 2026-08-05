@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase, Customer, Platform, House, Owner } from '@/lib/supabaseClient';
-import { Users, Globe, Home as HomeIcon, UserCheck, Plus, Search } from 'lucide-react';
+import { Users, Globe, Home as HomeIcon, UserCheck, Search, Calendar } from 'lucide-react';
 
 export default function MasterDataPage() {
   const [activeTab, setActiveTab] = useState<'customers' | 'platforms' | 'houses' | 'owners'>('customers');
@@ -30,7 +30,13 @@ export default function MasterDataPage() {
 
       if (custRes.data) setCustomers(custRes.data);
       if (platRes.data) setPlatforms(platRes.data);
-      if (houseRes.data) setHouses(houseRes.data);
+      if (houseRes.data) {
+        setHouses(houseRes.data.map((h: any) => ({
+          ...h,
+          start_period_date: h.start_period_date || '05-15',
+          end_period_date: h.end_period_date || '10-15'
+        })));
+      }
       if (ownRes.data) setOwners(ownRes.data);
     } catch (e) {
       console.error(e);
@@ -184,6 +190,8 @@ export default function MasterDataPage() {
               <tr>
                 <th className="px-5 py-4">ID</th>
                 <th className="px-5 py-4">Όνομα Σπιτιού / Βίλας</th>
+                <th className="px-5 py-4">Έναρξη Περιόδου (StartPeriod)</th>
+                <th className="px-5 py-4">Λήξη Περιόδου (EndPeriod)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -191,6 +199,18 @@ export default function MasterDataPage() {
                 <tr key={h.house_aid} className="hover:bg-slate-800/40">
                   <td className="px-5 py-3.5 font-mono text-xs text-slate-500">#{h.house_aid}</td>
                   <td className="px-5 py-3.5 font-semibold text-white">{h.house_name}</td>
+                  <td className="px-5 py-3.5 font-bold text-amber-400">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                      <Calendar className="w-3.5 h-3.5" />
+                      15 Μαΐου ({h.start_period_date || '05-15'})
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5 font-bold text-amber-400">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                      <Calendar className="w-3.5 h-3.5" />
+                      15 Οκτωβρίου ({h.end_period_date || '10-15'})
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>

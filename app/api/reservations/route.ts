@@ -36,8 +36,15 @@ export async function GET() {
       return NextResponse.json({ error: reservationsRes.error.message }, { status: 500 });
     }
 
+    // Process houses to ensure default rental period (15 May to 15 Oct) if not explicitly set
+    const processedHouses = (housesRes.data || []).map((h: any) => ({
+      ...h,
+      start_period_date: h.start_period_date || '05-15',
+      end_period_date: h.end_period_date || '10-15'
+    }));
+
     return NextResponse.json({
-      houses: housesRes.data || [],
+      houses: processedHouses,
       reservations: reservationsRes.data || [],
       taxKlimaka: taxKlimakaRes.data || [],
       taxKlimakaItems: taxItemsRes.data || [],
