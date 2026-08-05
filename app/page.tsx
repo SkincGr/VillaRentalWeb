@@ -283,8 +283,8 @@ export default function ReservationsPage() {
     }
   };
 
-  // Role & Filter Logic
-  const filteredReservations = reservations.filter((res) => {
+  // 1. BASE YEAR & HOUSE RESERVATIONS (ALL records for selected year & house, ignoring list toggles)
+  const baseYearAndHouseReservations = reservations.filter((res) => {
     if (assignedHouseIds.length > 0 && res.f_house_aid) {
       if (!assignedHouseIds.includes(res.f_house_aid)) return false;
     }
@@ -298,6 +298,11 @@ export default function ReservationsPage() {
       return false;
     }
 
+    return true;
+  });
+
+  // 2. FILTERED RESERVATIONS FOR THE CARD LIST (respects hideCancelled & onlyCurrent toggles)
+  const filteredReservations = baseYearAndHouseReservations.filter((res) => {
     if (hideCancelled && res.canceled) {
       return false;
     }
@@ -309,16 +314,16 @@ export default function ReservationsPage() {
     return true;
   });
 
-  // Counters
-  const totalCount = filteredReservations.length;
-  const cancelledCount = filteredReservations.filter(r => r.canceled).length;
+  // Counters for the list view
+  const listTotalCount = filteredReservations.length;
+  const listCancelledCount = filteredReservations.filter(r => r.canceled).length;
 
-  // Actual Financials (considering only active non-canceled reservations)
-  const actualFinancials = computePeriodFinancials(filteredReservations, taxItems);
+  // ── FINANCIAL MODAL CALCULATIONS (Always uses ALL records for selected year & house!) ──
+  const actualFinancials = computePeriodFinancials(baseYearAndHouseReservations, taxItems);
 
   // Potential Financials (assuming 0 cancellations)
   const potentialFinancials = computePeriodFinancials(
-    filteredReservations.map(r => ({ ...r, canceled: false })),
+    baseYearAndHouseReservations.map(r => ({ ...r, canceled: false })),
     taxItems
   );
 
@@ -423,7 +428,7 @@ export default function ReservationsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <div>
               <span>Reservations: </span>
-              <span className="font-bold text-sky-500">{totalCount}</span>
+              <span className="font-bold text-sky-500">{listTotalCount}</span>
             </div>
 
             <span>|</span>
@@ -437,22 +442,22 @@ export default function ReservationsPage() {
 
             <span>|</span>
 
-            {/* NEW Financial Summary Icon Button */}
+            {/* Financial Summary Icon Button */}
             <button
               type="button"
               onClick={() => setShowFinancialModal(true)}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20 transition-all cursor-pointer shadow-sm"
-              title="Αναλυτικά Οικονομικά Στοιχεία & Φόρος"
+              title="Αναλυτικά Οικονομικά Στοιχεία & Φόρος (Όλες οι εγγραφές του έτους)"
             >
               <BarChart3 className="w-3.5 h-3.5 text-indigo-400" />
               <span>Οικονομικά Στοιχεία</span>
             </button>
           </div>
 
-          {cancelledCount > 0 && (
+          {listCancelledCount > 0 && (
             <div className="flex items-center gap-1 text-rose-500">
               <Ban className="w-3.5 h-3.5" />
-              <span>{cancelledCount} cancelled</span>
+              <span>{listCancelledCount} cancelled</span>
             </div>
           )}
         </div>
@@ -590,7 +595,7 @@ export default function ReservationsPage() {
         </div>
       )}
 
-      {/* ── FINANCIAL SUMMARY MODAL (Icon Click) ── */}
+      {/* ── FINANCIAL SUMMARY MODAL (Calculates on ALL records for selected year & house) ── */}
       {showFinancialModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
           <div className={`w-full max-w-lg rounded-2xl border p-6 space-y-5 shadow-2xl relative transition-colors max-h-[90vh] overflow-y-auto ${
@@ -604,7 +609,7 @@ export default function ReservationsPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-extrabold tracking-tight">Οικονομική Αναφορά {selectedYear}</h3>
-                  <p className="text-xs text-slate-400">Αναλυτικά στοιχεία εσόδων, προμηθειών, φόρων & ακυρώσεων</p>
+                  <p className="text-xs text-slate-400">Συνολικά στοιχεία έτους (περιλαμβάνει όλες τις εγγραφές)</p>
                 </div>
               </div>
               <button
@@ -631,7 +636,7 @@ export default function ReservationsPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 flex items-center gap-1.5 font-semibold">
                     <Ban className="w-4 h-4 text-rose-400" />
-                    Cancelations:
+                    Cancelation:
                   </span>
                   <span className="font-bold text-sm text-rose-400">{actualFinancials.cancelCount}</span>
                 </div>
