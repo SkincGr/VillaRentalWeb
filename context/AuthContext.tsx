@@ -36,26 +36,21 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// OFFICIAL SITE SECURITY PASSCODE (Layer 1 Gatekeeper)
-const OFFICIAL_SITE_PASSCODES = [
-  'lesvos#54#Mirina#81',
-  'lesvos#54#mirina#81',
-  '2026',
-  'skindilias'
-];
+// EXCLUSIVE SITE SECURITY PASSCODE (Layer 1 Gatekeeper)
+const EXCLUSIVE_SITE_PASSCODE = 'lesvos#54#Mirina#81';
 
-// Valid registered accounts for user login (Layer 2)
+// EXCLUSIVE REGISTERED ACCOUNTS FOR USER LOGIN (Layer 2)
 const REGISTERED_ACCOUNTS = [
   {
     email: 'skinkon@gmail.com',
-    passwords: ['skindilias2026!', 'skindilias2026', '123456', 'owner2026password'],
+    passwords: ['Skindilias2026!'],
     role: 'OWNER' as UserRole,
     ownerId: 1,
     name: 'Κωνσταντίνος Σκινδήλιας (Ιδιοκτήτης)'
   },
   {
     email: 'alex@gmail.com',
-    passwords: ['alex2026!', 'alex2026', '123456'],
+    passwords: ['Alex2026!'],
     role: 'MANAGER' as UserRole,
     managerId: 1,
     name: 'Alex (Διαχειριστής)'
@@ -65,7 +60,7 @@ const REGISTERED_ACCOUNTS = [
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(null);
   const [siteUnlocked, setSiteUnlocked] = useState<boolean>(false);
-  const [customSitePasscode, setCustomSitePasscode] = useState<string>('lesvos#54#Mirina#81');
+  const [customSitePasscode, setCustomSitePasscode] = useState<string>(EXCLUSIVE_SITE_PASSCODE);
   const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
   const [assignedHouseIds, setAssignedHouseIds] = useState<number[]>([]);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -135,12 +130,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Layer 1: Unlock Site Protection Gatekeeper
+  // Layer 1: Unlock Site Protection Gatekeeper (Strict Exact Match)
   const unlockSite = (passcodeInput: string): boolean => {
     const cleanPass = passcodeInput.trim();
-    const validPasscodes = [...OFFICIAL_SITE_PASSCODES, customSitePasscode];
-
-    if (validPasscodes.some(p => p.toLowerCase() === cleanPass.toLowerCase())) {
+    
+    if (cleanPass === customSitePasscode || cleanPass === EXCLUSIVE_SITE_PASSCODE) {
       setSiteUnlocked(true);
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('vr_site_unlocked', 'true');
@@ -176,7 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Layer 2: User Login
+  // Layer 2: User Login (Strict Password Match)
   async function login(emailInput: string, passwordInput: string): Promise<{ success: boolean; error?: string }> {
     const cleanEmail = emailInput.trim().toLowerCase();
     const cleanPassword = passwordInput.trim();
@@ -190,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: 'Δεν βρέθηκε εγγεγραμμένος λογαριασμός με αυτό το email' };
     }
 
-    const isValidPass = account.passwords.some(p => p.toLowerCase() === cleanPassword.toLowerCase());
+    const isValidPass = account.passwords.some(p => p === cleanPassword);
     if (!isValidPass) {
       return { success: false, error: 'Λανθασμένος κωδικός πρόσβασης' };
     }
