@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://qfmltxeattdcdetbrcie.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_luRxRKOVoPW09H5GFlbtmQ_9KlP-xbA';
+const DEFAULT_URL = 'https://qfmltxeattdcdetbrcie.supabase.co';
+const VALID_ANON_KEY = 'sb_publishable_luRxRKOVoPW09H5GFlbtmQ_9KlP-xbA';
+
+const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_URL.trim().startsWith('http')) 
+  ? process.env.NEXT_PUBLIC_SUPABASE_URL.trim() 
+  : DEFAULT_URL;
+
+const envKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || '';
+const supabaseAnonKey = envKey.includes('luRxRKO') ? envKey : VALID_ANON_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
