@@ -7,25 +7,50 @@ import {
   Eye, 
   X, 
   Ban, 
-  CheckCircle2, 
   User, 
   Calendar as CalendarIcon, 
   Users, 
-  FileText, 
-  Filter, 
-  Home,
-  Building2
+  FileText
 } from 'lucide-react';
 
+// Helper to safely extract 4-digit Year string from any ISO date string (cross-browser / iOS Safari safe)
+function getYearFromIso(isoString: string | null | undefined): string {
+  if (!isoString) return '';
+  const match = isoString.match(/^(\d{4})/);
+  return match ? match[1] : '';
+}
+
+// Helper to format date string DD/MM/YYYY
+function formatDateDisplay(isoString: string | null | undefined): string {
+  if (!isoString) return '-';
+  const parts = isoString.split('T')[0].split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return isoString;
+}
+
+// Helper to format Month Badge (e.g. Aug 2026)
+function getMonthBadge(isoString: string | null | undefined): string {
+  if (!isoString) return '';
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const parts = isoString.split('T')[0].split('-');
+  if (parts.length === 3) {
+    const monthIdx = parseInt(parts[1], 10) - 1;
+    const year = parts[0];
+    return `${months[monthIdx] || ''} ${year}`;
+  }
+  return '';
+}
+
 export default function ReservationsPage() {
-  const { user, role, ownerId, selectedHouseId: globalSelectedHouseId, assignedHouseIds, theme } = useAuth();
+  const { role, ownerId, selectedHouseId: globalSelectedHouseId, assignedHouseIds, theme } = useAuth();
   
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [houses, setHouses] = useState<House[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters matching user request
-  const currentYear = new Date().getFullYear().toString(); // e.g. "2026"
   const [selectedYear, setSelectedYear] = useState<string>('2026');
   const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
   const [hideCancelled, setHideCancelled] = useState(false);
@@ -78,12 +103,12 @@ export default function ReservationsPage() {
     }
   }, [globalSelectedHouseId]);
 
-  // Extract available years (EXCLUDING "ALL" option as requested: "Φιλτρα μονο year (οχι όλα)")
+  // Extract available years (safely using getYearFromIso)
   const availableYears = Array.from(
-    new Set(reservations.map(r => new Date(r.start_date).getFullYear().toString()))
+    new Set(reservations.map(r => getYearFromIso(r.start_date)).filter(Boolean))
   ).sort().reverse();
 
-  // Set default year to latest if 2026 not present
+  // Set default year to latest available if current selectedYear not present
   useEffect(() => {
     if (availableYears.length > 0 && !availableYears.includes(selectedYear)) {
       setSelectedYear(availableYears[0]);
@@ -102,8 +127,8 @@ export default function ReservationsPage() {
       return false;
     }
 
-    // 3. Year Filter (Strictly matches selected year)
-    const resYear = res.start_date ? new Date(res.start_date).getFullYear().toString() : '';
+    // 3. Year Filter (Strictly matches selected year using getYearFromIso)
+    const resYear = getYearFromIso(res.start_date);
     if (resYear !== selectedYear) {
       return false;
     }
@@ -119,7 +144,6 @@ export default function ReservationsPage() {
   // Counters
   const totalCount = filteredReservations.length;
   const cancelledCount = filteredReservations.filter(r => r.canceled).length;
-  const activeCount = totalCount - cancelledCount;
 
   const isDark = theme === 'dark';
 
@@ -208,7 +232,7 @@ export default function ReservationsPage() {
         </div>
       </div>
 
-      {/* ── RESERVATION CARDS LIST (Matching Mobile Design) ── */}
+      {/* ── RESERVATION CARDS LIST ── */}
       {loading ? (
         <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
           <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
@@ -223,19 +247,19 @@ export default function ReservationsPage() {
       ) : (
         <div className="space-y-3.5">
           {filteredReservations.map((res) => {
-            const startDate = new Date(res.start_date);
-            const endDate = new Date(res.end_date);
-            
-            // Format dates DD/MM/YYYY
-            const startStr = startDate.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            const endStr = endDate.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const startDisplay = formatDateDisplay(res.start_date);
+            const endDisplay = formatDateDisplay(res.end_date);
+            const monthBadge = getMonthBadge(res.start_date);
             
             // Duration calculation
-            const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            // Month badge (e.g., Aug 2026)
-            const monthBadge = startDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            let diffDays = 0;
+            if (res.start_date && res.end_date) {
+              const s = new Date(res.start_date).getTime();
+              const e = new Date(res.end_date).getTime();
+              if (!isNaN(s) && !isNaN(e)) {
+                diffDays = Math.ceil(Math.abs(e - s) / (1000 * 60 * 60 * 24));
+              }
+            }
 
             return (
               <div
@@ -290,8 +314,8 @@ export default function ReservationsPage() {
 
                 {/* Dates & Duration Row */}
                 <div className="mt-2 text-xs font-semibold text-slate-400 italic">
-                  <span>{startStr} - {endStr}</span>
-                  <span className="ml-1 text-slate-500">({diffDays} days)</span>
+                  <span>{startDisplay} - {endDisplay}</span>
+                  {diffDays > 0 && <span className="ml-1 text-slate-500">({diffDays} days)</span>}
                 </div>
 
                 {/* Details Subtitle Row */}
@@ -367,7 +391,7 @@ export default function ReservationsPage() {
                     <CalendarIcon className="w-4 h-4 text-indigo-400" />
                     <span>Ημερομηνίες</span>
                   </div>
-                  <p className="text-xs font-bold">{new Date(selectedRes.start_date).toLocaleDateString('el-GR')} ➔ {new Date(selectedRes.end_date).toLocaleDateString('el-GR')}</p>
+                  <p className="text-xs font-bold">{formatDateDisplay(selectedRes.start_date)} ➔ {formatDateDisplay(selectedRes.end_date)}</p>
                 </div>
 
                 <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
