@@ -20,7 +20,7 @@ export async function GET() {
           platforms (*),
           houses (*)
         `)
-        .order('start_date', { ascending: false }),
+        .order('start_date', { ascending: true }),
       supabase.from('tax_klimaka').select('*'),
       supabase.from('tax_klimaka_items').select('*').order('from_amount', { ascending: true })
     ]);

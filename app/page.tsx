@@ -312,18 +312,20 @@ export default function ReservationsPage() {
     return true;
   });
 
-  // 2. FILTERED RESERVATIONS FOR THE CARD LIST (respects hideCancelled & onlyCurrent toggles)
-  const filteredReservations = baseYearAndHouseReservations.filter((res) => {
-    if (hideCancelled && res.canceled) {
-      return false;
-    }
+  // 2. FILTERED RESERVATIONS FOR THE CARD LIST (sorted by start_date ASCENDING, respects hideCancelled & onlyCurrent toggles)
+  const filteredReservations = baseYearAndHouseReservations
+    .filter((res) => {
+      if (hideCancelled && res.canceled) {
+        return false;
+      }
 
-    if (onlyCurrent && isReservationExpired(res.end_date)) {
-      return false;
-    }
+      if (onlyCurrent && isReservationExpired(res.end_date)) {
+        return false;
+      }
 
-    return true;
-  });
+      return true;
+    })
+    .sort((a, b) => (a.start_date || '').localeCompare(b.start_date || ''));
 
   // Counters for the list view
   const listTotalCount = filteredReservations.length;
@@ -486,7 +488,7 @@ export default function ReservationsPage() {
         </div>
       </div>
 
-      {/* ── RESERVATION CARDS LIST ── */}
+      {/* ── RESERVATION CARDS LIST (Sorted by start_date ASCENDING) ── */}
       {loading ? (
         <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
           <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
