@@ -32,6 +32,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Default fallback session for first-time visitors (Alex Manager)
+const DEFAULT_MANAGER_SESSION: UserSession = {
+  id: 'mgr_1',
+  name: 'Alex (Διαχειριστής)',
+  email: 'alex@gmail.com',
+  role: 'MANAGER',
+  managerId: 1
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(null);
   const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
@@ -40,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [initialized, setInitialized] = useState(false);
   const router = useRouter();
 
-  // Load initial theme & session from localStorage
+  // Load initial theme & session from localStorage (with default fallback)
   useEffect(() => {
     const savedTheme = localStorage.getItem('vr_theme') as 'dark' | 'light' | null;
     if (savedTheme) {
@@ -51,15 +60,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const savedUser = localStorage.getItem('vr_session');
+    let sessionToUse = DEFAULT_MANAGER_SESSION;
+
     if (savedUser) {
       try {
-        const parsed = JSON.parse(savedUser) as UserSession;
-        setUser(parsed);
-        loadAssignedHouses(parsed);
+        sessionToUse = JSON.parse(savedUser) as UserSession;
       } catch (e) {
         console.error('Error parsing session:', e);
       }
+    } else {
+      localStorage.setItem('vr_session', JSON.stringify(DEFAULT_MANAGER_SESSION));
     }
+
+    setUser(sessionToUse);
+    loadAssignedHouses(sessionToUse);
     setInitialized(true);
   }, []);
 
@@ -75,24 +89,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   async function loadAssignedHouses(session: UserSession) {
-    if (session.role === 'MANAGER' && session.managerId) {
-      // Manager -> fetch houses assigned in manager_to_house table
-      const { data } = await supabase
-        .from('manager_to_house')
-        .select('f_house_aid')
-        .eq('f_manager_aid', session.managerId);
-      
-      const houseIds = (data || []).map(item => item.f_house_aid);
-      setAssignedHouseIds(houseIds);
-    } else if (session.role === 'OWNER' && session.ownerId) {
-      // Owner -> fetch houses assigned in house_owners table
-      const { data } = await supabase
-        .from('house_owners')
-        .select('f_house_aid')
-        .eq('f_owner_aid', session.ownerId);
+    try {
+      if (session.role === 'MANAGER' && session.managerId) {
+        // Manager -> fetch houses assigned in manager_to_house table
+        const { data } = await supabase
+          .from('manager_to_house')
+          .select('f_house_aid')
+          .eq('f_manager_aid', session.managerId);
+        
+        const houseIds = (data || []).map(item => item.f_house_aid);
+        setAssignedHouseIds(houseIds);
+      } else if (session.role === 'OWNER' && session.ownerId) {
+        // Owner -> fetch houses assigned in house_owners table
+        const { data } = await supabase
+          .from('house_owners')
+          .select('f_house_aid')
+          .eq('f_owner_aid', session.ownerId);
 
-      const houseIds = (data || []).map(item => item.f_house_aid);
-      setAssignedHouseIds(houseIds);
+        const houseIds = (data || []).map(item => item.f_house_aid);
+        setAssignedHouseIds(houseIds);
+      }
+    } catch (err) {
+      console.error('Error loading assigned houses:', err);
     }
   }
 
