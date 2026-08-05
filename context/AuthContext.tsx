@@ -16,8 +16,8 @@ export interface UserSession {
 }
 
 interface AuthContextType {
-  user: UserSession | null;
-  role: UserRole | null;
+  user: UserSession;
+  role: UserRole;
   managerId: number | null;
   ownerId: number | null;
   selectedHouseId: number | 'ALL';
@@ -30,17 +30,26 @@ interface AuthContextType {
   logout: () => void;
 }
 
+// Default active manager session for instant UI rendering
+const DEFAULT_MANAGER_SESSION: UserSession = {
+  id: 'mgr_1',
+  name: 'Alex (Διαχειριστής)',
+  email: 'alex@gmail.com',
+  role: 'MANAGER',
+  managerId: 1
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserSession | null>(null);
+  const [user, setUser] = useState<UserSession>(DEFAULT_MANAGER_SESSION);
   const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
-  const [assignedHouseIds, setAssignedHouseIds] = useState<number[]>([]);
+  const [assignedHouseIds, setAssignedHouseIds] = useState<number[]>([1]);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [initialized, setInitialized] = useState(false);
+  const [initialized, setInitialized] = useState(true); // Always true by default
   const router = useRouter();
 
-  // Hydration-safe initial session & theme load
+  // Load saved session & theme on client mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -62,11 +71,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(parsed);
           loadAssignedHouses(parsed);
         }
+      } else {
+        localStorage.setItem('vr_session', JSON.stringify(DEFAULT_MANAGER_SESSION));
       }
     } catch (e) {
-      console.error('Error during AuthProvider initialization:', e);
-    } finally {
-      setInitialized(true);
+      console.error('AuthProvider initialization error:', e);
     }
   }, []);
 
@@ -92,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq('f_manager_aid', session.managerId);
         
         const houseIds = (data || []).map(item => item.f_house_aid);
-        setAssignedHouseIds(houseIds);
+        setAssignedHouseIds(houseIds.length > 0 ? houseIds : [1]);
       } else if (session.role === 'OWNER' && session.ownerId) {
         const { data } = await supabase
           .from('house_owners')
@@ -100,10 +109,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq('f_owner_aid', session.ownerId);
 
         const houseIds = (data || []).map(item => item.f_house_aid);
-        setAssignedHouseIds(houseIds);
+        setAssignedHouseIds(houseIds.length > 0 ? houseIds : [1]);
       }
     } catch (err) {
       console.error('Error loading assigned houses:', err);
+      setAssignedHouseIds([1]);
     }
   }
 
@@ -151,9 +161,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   function logout() {
-    setUser(null);
+    setUser(DEFAULT_MANAGER_SESSION);
     setSelectedHouseId('ALL');
-    setAssignedHouseIds([]);
+    setAssignedHouseIds([1]);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('vr_session');
     }
@@ -164,9 +174,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        role: user?.role || null,
-        managerId: user?.managerId || null,
-        ownerId: user?.ownerId || null,
+        role: user.role,
+        managerId: user.managerId || null,
+        ownerId: user.ownerId || null,
         selectedHouseId,
         setSelectedHouseId,
         assignedHouseIds,

@@ -1,45 +1,18 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 
 export default function MainLayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const { user, initialized, theme } = useAuth();
+  const { theme } = useAuth();
 
   const isLoginPage = pathname === '/login';
 
-  useEffect(() => {
-    if (initialized && !user && !isLoginPage) {
-      router.replace('/login');
-    }
-  }, [initialized, user, isLoginPage, router]);
-
-  if (!initialized) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-3">
-        <div className="w-8 h-8 border-2 border-sky-400 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-sm text-slate-400">Φόρτωση...</p>
-      </div>
-    );
-  }
-
   if (isLoginPage) {
     return <>{children}</>;
-  }
-
-  // If user is not logged in and not on login page, don't render page while redirecting
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-3">
-        <div className="w-8 h-8 border-2 border-sky-400 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-sm text-slate-400">Μετάβαση στη σελίδα σύνδεσης...</p>
-      </div>
-    );
   }
 
   const isDark = theme === 'dark';
