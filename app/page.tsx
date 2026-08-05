@@ -33,6 +33,16 @@ export interface TaxKlimakaItem {
   pososto: number;
 }
 
+// Helper to safely check if a platform is taxable (handles boolean, integer 1/0, and strings 'true'/'false'/'1'/'0')
+function isPlatformTaxable(platform: any): boolean {
+  if (!platform) return false;
+  const val = platform.tax_able;
+  if (val === true || val === 1 || val === '1' || val === 'true' || val === 't') {
+    return true;
+  }
+  return false;
+}
+
 // Helper to safely extract 4-digit Year string from any ISO date string (cross-browser / iOS Safari safe)
 function getYearFromIso(isoString: string | null | undefined): string {
   if (!isoString) return '';
@@ -134,7 +144,7 @@ function computePeriodFinancials(resList: Reservation[], taxItems: TaxKlimakaIte
     const fee = Number(res.fee || 0);
     const platRate = Number(res.platforms?.plat_commission || 0);
     const mgrRate = Number(res.platforms?.commission || 0);
-    const isTaxable = Boolean(res.platforms?.tax_able);
+    const isTaxable = isPlatformTaxable(res.platforms);
 
     // Duration days
     let days = 0;
@@ -142,7 +152,7 @@ function computePeriodFinancials(resList: Reservation[], taxItems: TaxKlimakaIte
       const s = new Date(res.start_date).getTime();
       const e = new Date(res.end_date).getTime();
       if (!isNaN(s) && !isNaN(e)) {
-        days = Math.ceil(Math.abs(e - s) / (1000 * 60 * 60 * 24));
+        days = Math.round(Math.abs(e - s) / (1000 * 60 * 60 * 24));
       }
     }
 
@@ -490,7 +500,7 @@ export default function ReservationsPage() {
               const s = new Date(res.start_date).getTime();
               const e = new Date(res.end_date).getTime();
               if (!isNaN(s) && !isNaN(e)) {
-                diffDays = Math.ceil(Math.abs(e - s) / (1000 * 60 * 60 * 24));
+                diffDays = Math.round(Math.abs(e - s) / (1000 * 60 * 60 * 24));
               }
             }
 
