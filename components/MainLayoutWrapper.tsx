@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
+import MobileBottomNav from '@/components/MobileBottomNav';
 
 export default function MainLayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -34,12 +35,18 @@ export default function MainLayoutWrapper({ children }: { children: React.ReactN
     <div className={`flex min-h-screen transition-colors duration-300 ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
     }`}>
+      {/* Desktop Sidebar (visible on md and larger) */}
       <Sidebar />
+
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
-        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+        <main className="flex-1 p-4 md:p-8 overflow-y-auto pb-20 md:pb-8">
           {children}
         </main>
+
+        {/* Mobile Bottom Navigation Bar (visible on sm and mobile) */}
+        <MobileBottomNav />
       </div>
     </div>
   );
