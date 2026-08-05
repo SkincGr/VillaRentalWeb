@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const [housesRes, reservationsRes, taxKlimakaRes, taxItemsRes, platformsRes, nationalityRes] = await Promise.all([
+    const [housesRes, reservationsRes, taxKlimakaRes, taxItemsRes, platformsRes, nationalityRes, customersRes] = await Promise.all([
       supabase.from('houses').select('*'),
       supabase
         .from('reservations')
@@ -27,7 +27,8 @@ export async function GET() {
       supabase.from('tax_klimaka').select('*'),
       supabase.from('tax_klimaka_items').select('*').order('from_amount', { ascending: true }),
       supabase.from('platforms').select('*'),
-      supabase.from('nationality').select('*').order('nationality', { ascending: true })
+      supabase.from('nationality').select('*').order('nationality', { ascending: true }),
+      supabase.from('customers').select('*, nationality (*)').order('name', { ascending: true })
     ]);
 
     if (reservationsRes.error) {
@@ -41,7 +42,8 @@ export async function GET() {
       taxKlimaka: taxKlimakaRes.data || [],
       taxKlimakaItems: taxItemsRes.data || [],
       platforms: platformsRes.data || [],
-      nationalities: nationalityRes.data || []
+      nationalities: nationalityRes.data || [],
+      customers: customersRes.data || []
     });
   } catch (err: any) {
     console.error('API Error:', err);

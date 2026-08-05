@@ -2,8 +2,8 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
-import { Reservation, House, Platform, Nationality } from '@/lib/supabaseClient';
+import { useState, useEffect, useRef } from 'react';
+import { Reservation, House, Platform, Customer, Nationality } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { 
   Eye, 
@@ -25,7 +25,11 @@ import {
   AlertTriangle,
   Pencil,
   Trash2,
-  Save
+  Save,
+  Plus,
+  Search,
+  Globe,
+  UserPlus
 } from 'lucide-react';
 
 export interface TaxKlimakaItem {
@@ -36,7 +40,6 @@ export interface TaxKlimakaItem {
   pososto: number;
 }
 
-// Helper to safely check if a platform is taxable (handles boolean, integer 1/0, and strings 'true'/'false'/'1'/'0')
 function isPlatformTaxable(platform: any): boolean {
   if (!platform) return false;
   const val = platform.tax_able;
@@ -46,14 +49,12 @@ function isPlatformTaxable(platform: any): boolean {
   return false;
 }
 
-// Helper to safely extract 4-digit Year string from any ISO date string (cross-browser / iOS Safari safe)
 function getYearFromIso(isoString: string | null | undefined): string {
   if (!isoString) return '';
   const match = isoString.match(/^(\d{4})/);
   return match ? match[1] : '';
 }
 
-// Helper to format date string DD/MM/YYYY
 function formatDateDisplay(isoString: string | null | undefined): string {
   if (!isoString) return '-';
   const parts = isoString.split('T')[0].split('-');
@@ -63,13 +64,11 @@ function formatDateDisplay(isoString: string | null | undefined): string {
   return isoString;
 }
 
-// Helper to format ISO date string for HTML <input type="date"> (YYYY-MM-DD)
 function formatDateInput(isoString: string | null | undefined): string {
   if (!isoString) return '';
   return isoString.split('T')[0];
 }
 
-// Helper to format Month Badge (e.g. Aug 2026)
 function getMonthBadge(isoString: string | null | undefined): string {
   if (!isoString) return '';
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -82,15 +81,13 @@ function getMonthBadge(isoString: string | null | undefined): string {
   return '';
 }
 
-// Helper to check if a reservation date has already expired (end_date < today)
 function isReservationExpired(endDateIso: string | null | undefined): boolean {
   if (!endDateIso) return false;
-  const todayStr = new Date().toISOString().split('T')[0]; // e.g. "2026-08-05"
+  const todayStr = new Date().toISOString().split('T')[0];
   const endStr = endDateIso.split('T')[0];
   return endStr < todayStr;
 }
 
-// Helper to calculate single reservation financials:
 function calculateFinancials(feeNum: number, platCommRate: number, managerCommRate: number) {
   const fee = Number(feeNum || 0);
   const platComm = fee * Number(platCommRate || 0);
@@ -106,7 +103,6 @@ function calculateFinancials(feeNum: number, platCommRate: number, managerCommRa
   };
 }
 
-// Progressive Tax Calculation algorithm (Tax_Klimaka_Items for Natural Person / f_tax_klimaka_aid: 1)
 function calculateProgressiveTax(taxableGrossFee: number, items: TaxKlimakaItem[]): number {
   if (taxableGrossFee <= 0) return 0;
   
@@ -128,7 +124,6 @@ function calculateProgressiveTax(taxableGrossFee: number, items: TaxKlimakaItem[
   return totalTax;
 }
 
-// Helper to compute aggregate financial metrics for a list of reservations
 function computePeriodFinancials(resList: Reservation[], taxItems: TaxKlimakaItem[]) {
   let activeCount = 0;
   let cancelCount = 0;
@@ -152,7 +147,6 @@ function computePeriodFinancials(resList: Reservation[], taxItems: TaxKlimakaIte
     const mgrRate = Number(res.platforms?.commission || 0);
     const isTaxable = isPlatformTaxable(res.platforms);
 
-    // Duration days
     let days = 0;
     if (res.start_date && res.end_date) {
       const s = new Date(res.start_date).getTime();
@@ -209,6 +203,7 @@ export default function ReservationsPage() {
   const [houses, setHouses] = useState<House[]>([]);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [nationalities, setNationalities] = useState<Nationality[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [taxItems, setTaxItems] = useState<TaxKlimakaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -219,15 +214,56 @@ export default function ReservationsPage() {
   const [onlyCurrent, setOnlyCurrent] = useState<boolean>(false);
   const [hideCancelled, setHideCancelled] = useState<boolean>(false);
 
-  // Modals
+  // Main Modals
   const [selectedRes, setSelectedRes] = useState<Reservation | null>(null);
   const [showFinancialModal, setShowFinancialModal] = useState<boolean>(false);
-  const [editingRes, setEditingRes] = useState<Partial<Reservation> & { customer_name?: string; f_nationallity_aid?: number } | null>(null);
+  
+  // Reservation Form Modal (Create or Edit)
+  const [resFormModal, setResFormModal] = useState<{
+    isOpen: boolean;
+    isEditing: boolean;
+    reser_id?: number;
+    f_custom_id?: number;
+    customer_name: string;
+    f_nationallity_aid?: number;
+    start_date: string;
+    end_date: string;
+    fee: number;
+    num_of_visitors: number;
+    kids: number;
+    f_platform_id: number;
+    f_house_aid: number;
+    notes: string;
+  } | null>(null);
+
+  // Delete Modal
   const [deletingResId, setDeletingResId] = useState<number | null>(null);
+
+  // Sub-Modals: New Customer & New Nationality
+  const [showNewCustomerModal, setShowNewCustomerModal] = useState<boolean>(false);
+  const [newCustomerForm, setNewCustomerForm] = useState({ name: '', email: '', phone: '', f_nationallity_aid: '' });
+
+  const [showNewNationalityModal, setShowNewNationalityModal] = useState<boolean>(false);
+  const [newNationalityName, setNewNationalityName] = useState('');
+
+  // Autocomplete dropdown state
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState<boolean>(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchData();
   }, [role, ownerId]);
+
+  // Click outside to close customer dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowCustomerDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   async function fetchData() {
     setLoading(true);
@@ -258,6 +294,10 @@ export default function ReservationsPage() {
       if (json.nationalities) {
         setNationalities(json.nationalities);
       }
+
+      if (json.customers) {
+        setCustomers(json.customers);
+      }
     } catch (err) {
       console.error('Fetch error:', err);
     } finally {
@@ -265,24 +305,212 @@ export default function ReservationsPage() {
     }
   }
 
-  // Sync global selected house if set from header
+  // Sync global selected house
   useEffect(() => {
     if (globalSelectedHouseId) {
       setSelectedHouseId(globalSelectedHouseId);
     }
   }, [globalSelectedHouseId]);
 
-  // Extract available years (safely using getYearFromIso)
   const availableYears = Array.from(
     new Set(reservations.map(r => getYearFromIso(r.start_date)).filter(Boolean))
   ).sort().reverse();
 
-  // Set default year to latest available if current selectedYear not present
   useEffect(() => {
     if (availableYears.length > 0 && !availableYears.includes(selectedYear)) {
       setSelectedYear(availableYears[0]);
     }
   }, [reservations]);
+
+  // Open "New Reservation" Modal
+  const handleOpenCreateReservation = () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const defaultHouse = selectedHouseId !== 'ALL' ? Number(selectedHouseId) : (houses[0]?.house_aid || 1);
+    const defaultPlatform = platforms[0]?.platform_id || 1;
+
+    setResFormModal({
+      isOpen: true,
+      isEditing: false,
+      customer_name: '',
+      f_custom_id: undefined,
+      f_nationallity_aid: undefined,
+      start_date: todayStr,
+      end_date: todayStr,
+      fee: 0,
+      num_of_visitors: 2,
+      kids: 0,
+      f_platform_id: defaultPlatform,
+      f_house_aid: defaultHouse,
+      notes: ''
+    });
+  };
+
+  // Open "Edit Reservation" Modal
+  const handleOpenEditReservation = (res: Reservation) => {
+    setResFormModal({
+      isOpen: true,
+      isEditing: true,
+      reser_id: res.reser_id,
+      f_custom_id: res.f_custom_id,
+      customer_name: res.customers?.name || '',
+      f_nationallity_aid: res.customers?.f_nationallity_aid || (res.customers?.nationality?.nationality_aid),
+      start_date: formatDateInput(res.start_date),
+      end_date: formatDateInput(res.end_date),
+      fee: res.fee,
+      num_of_visitors: res.num_of_visitors,
+      kids: res.kids,
+      f_platform_id: res.f_platform_id || 1,
+      f_house_aid: res.f_house_aid || 1,
+      notes: res.notes || res.comments || ''
+    });
+  };
+
+  // Save Reservation (Create or Edit)
+  const handleSaveReservationForm = async () => {
+    if (!resFormModal) return;
+    if (!resFormModal.f_custom_id && !resFormModal.customer_name.trim()) {
+      alert('Παρακαλώ επιλέξτε ή πληκτρολογήστε όνομα πελάτη');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      let finalCustomId = resFormModal.f_custom_id;
+
+      // If user typed a customer name without selecting from dropdown, search or create customer
+      if (!finalCustomId && resFormModal.customer_name.trim()) {
+        const existingCust = customers.find(c => c.name.toLowerCase() === resFormModal.customer_name.trim().toLowerCase());
+        if (existingCust) {
+          finalCustomId = existingCust.custom_id;
+        } else {
+          // Create customer automatically
+          const custRes = await fetch('/api/customers/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: resFormModal.customer_name.trim(),
+              f_nationallity_aid: resFormModal.f_nationallity_aid
+            })
+          });
+          const custJson = await custRes.json();
+          if (custJson.success && custJson.customer) {
+            finalCustomId = custJson.customer.custom_id;
+            setCustomers(prev => [...prev, custJson.customer]);
+          } else {
+            alert('Σφάλμα δημιουργίας πελάτη: ' + (custJson.error || ''));
+            setActionLoading(false);
+            return;
+          }
+        }
+      }
+
+      const endpoint = resFormModal.isEditing ? '/api/reservations/update' : '/api/reservations/create';
+      const payload = {
+        ...resFormModal,
+        f_custom_id: finalCustomId
+      };
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const json = await response.json();
+      if (json.success) {
+        await fetchData();
+        setResFormModal(null);
+        setSelectedRes(null);
+      } else {
+        alert('Σφάλμα αποθήκευσης κράτησης: ' + (json.error || ''));
+      }
+    } catch (err) {
+      console.error('Save error:', err);
+      alert('Σφάλμα σύνδεσης');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Create New Customer Sub-modal Save
+  const handleSaveNewCustomer = async () => {
+    if (!newCustomerForm.name.trim()) {
+      alert('Παρακαλώ συμπληρώστε όνομα πελάτη');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const response = await fetch('/api/customers/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCustomerForm)
+      });
+
+      const json = await response.json();
+      if (json.success && json.customer) {
+        setCustomers(prev => [...prev, json.customer]);
+        
+        // Select newly created customer in Reservation Modal
+        if (resFormModal) {
+          setResFormModal({
+            ...resFormModal,
+            f_custom_id: json.customer.custom_id,
+            customer_name: json.customer.name,
+            f_nationallity_aid: json.customer.f_nationallity_aid
+          });
+        }
+        setShowNewCustomerModal(false);
+        setNewCustomerForm({ name: '', email: '', phone: '', f_nationallity_aid: '' });
+      } else {
+        alert('Σφάλμα δημιουργίας πελάτη: ' + (json.error || ''));
+      }
+    } catch (err) {
+      console.error('Customer create error:', err);
+      alert('Σφάλμα σύνδεσης');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Create New Nationality Sub-modal Save
+  const handleSaveNewNationality = async () => {
+    if (!newNationalityName.trim()) {
+      alert('Παρακαλώ συμπληρώστε όνομα εθνικότητας');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const response = await fetch('/api/nationalities/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nationality: newNationalityName.trim() })
+      });
+
+      const json = await response.json();
+      if (json.success && json.nationality) {
+        setNationalities(prev => [...prev, json.nationality].sort((a, b) => a.nationality.localeCompare(b.nationality)));
+        
+        // Preselect in new customer form or reservation modal
+        if (showNewCustomerModal) {
+          setNewCustomerForm(prev => ({ ...prev, f_nationallity_aid: String(json.nationality.nationality_aid) }));
+        } else if (resFormModal) {
+          setResFormModal(prev => prev ? ({ ...prev, f_nationallity_aid: json.nationality.nationality_aid }) : null);
+        }
+
+        setShowNewNationalityModal(false);
+        setNewNationalityName('');
+      } else {
+        alert('Σφάλμα δημιουργίας εθνικότητας: ' + (json.error || ''));
+      }
+    } catch (err) {
+      console.error('Nationality create error:', err);
+      alert('Σφάλμα σύνδεσης');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Toggle reservation cancellation status
   const handleToggleCancel = async (res: Reservation) => {
@@ -311,53 +539,6 @@ export default function ReservationsPage() {
     }
   };
 
-  // Open Edit Modal for a reservation
-  const handleOpenEdit = (res: Reservation) => {
-    setEditingRes({
-      reser_id: res.reser_id,
-      f_custom_id: res.f_custom_id,
-      customer_name: res.customers?.name || '',
-      f_nationallity_aid: res.customers?.f_nationallity_aid || (res.customers?.nationality?.nationality_aid),
-      start_date: formatDateInput(res.start_date),
-      end_date: formatDateInput(res.end_date),
-      fee: res.fee,
-      num_of_visitors: res.num_of_visitors,
-      kids: res.kids,
-      f_platform_id: res.f_platform_id,
-      f_house_aid: res.f_house_aid || 1,
-      notes: res.notes || '',
-      comments: res.comments || ''
-    });
-  };
-
-  // Save edited reservation
-  const handleSaveEdit = async () => {
-    if (!editingRes || !editingRes.reser_id) return;
-    setActionLoading(true);
-
-    try {
-      const response = await fetch('/api/reservations/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingRes)
-      });
-
-      const json = await response.json();
-      if (json.success) {
-        await fetchData(); // Re-fetch clean joined data
-        setEditingRes(null);
-        setSelectedRes(null);
-      } else {
-        alert('Σφάλμα αποθήκευσης: ' + (json.error || 'Unknown error'));
-      }
-    } catch (err) {
-      console.error('Error saving reservation:', err);
-      alert('Σφάλμα σύνδεσης κατά την αποθήκευση');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   // Confirm & Delete reservation
   const handleDeleteReservation = async (reserId: number) => {
     setActionLoading(true);
@@ -374,7 +555,7 @@ export default function ReservationsPage() {
         setReservations(prev => prev.filter(r => r.reser_id !== reserId));
         setDeletingResId(null);
         setSelectedRes(null);
-        setEditingRes(null);
+        setResFormModal(null);
       } else {
         alert('Σφάλμα διαγραφής: ' + (json.error || 'Unknown error'));
       }
@@ -386,7 +567,12 @@ export default function ReservationsPage() {
     }
   };
 
-  // 1. BASE YEAR & HOUSE RESERVATIONS (ALL records for selected year & house)
+  // Autocomplete matching customers
+  const matchingCustomers = resFormModal?.customer_name
+    ? customers.filter(c => c.name.toLowerCase().includes(resFormModal.customer_name.toLowerCase()))
+    : [];
+
+  // 1. BASE YEAR & HOUSE RESERVATIONS
   const baseYearAndHouseReservations = reservations.filter((res) => {
     if (assignedHouseIds.length > 0 && res.f_house_aid) {
       if (!assignedHouseIds.includes(res.f_house_aid)) return false;
@@ -419,11 +605,9 @@ export default function ReservationsPage() {
     })
     .sort((a, b) => (a.start_date || '').localeCompare(b.start_date || ''));
 
-  // Counters for the list view
   const listTotalCount = filteredReservations.length;
   const listCancelledCount = filteredReservations.filter(r => r.canceled).length;
 
-  // INCOME FOR THE SUMMARY BAR (Sum of Net Fee for non-canceled VISIBLE reservations on screen)
   const visibleNetIncome = filteredReservations
     .filter(r => !r.canceled)
     .reduce((sum, res) => {
@@ -435,10 +619,8 @@ export default function ReservationsPage() {
       return sum + netFee;
     }, 0);
 
-  // FINANCIAL MODAL CALCULATIONS (Always uses ALL records for selected year & house)
   const actualFinancials = computePeriodFinancials(baseYearAndHouseReservations, taxItems);
 
-  // Potential Financials (assuming 0 cancellations)
   const potentialFinancials = computePeriodFinancials(
     baseYearAndHouseReservations.map(r => ({ ...r, canceled: false })),
     taxItems
@@ -450,7 +632,7 @@ export default function ReservationsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-5 pb-12">
-      {/* ── FILTER & SUMMARY PANEL ── */}
+      {/* ── FILTER & SUMMARY PANEL (WITH NEW RESERVATION BUTTON) ── */}
       <div className={`p-4 rounded-2xl border shadow-sm transition-colors ${
         isDark 
           ? 'bg-slate-900/90 border-slate-800' 
@@ -500,8 +682,18 @@ export default function ReservationsPage() {
             </div>
           </div>
 
-          {/* Action Buttons: Toggle Όλα/Τρέχοντα & Hide Cancelled */}
+          {/* Action Buttons: New Reservation (+), Toggle Όλα/Τρέχοντα & Hide Cancelled */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* "+ Νέα Κράτηση" Button in Header Panel */}
+            <button
+              type="button"
+              onClick={handleOpenCreateReservation}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Νέα Κράτηση</span>
+            </button>
+
             {/* Toggle Όλα / Τρέχοντα */}
             <button
               type="button"
@@ -579,7 +771,7 @@ export default function ReservationsPage() {
         </div>
       </div>
 
-      {/* ── RESERVATION CARDS LIST (Sorted by start_date ASCENDING) ── */}
+      {/* ── RESERVATION CARDS LIST (Sorted by start_date ASCENDING, WITHOUT Delete icon) ── */}
       {loading ? (
         <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
           <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
@@ -599,7 +791,6 @@ export default function ReservationsPage() {
             const monthBadge = getMonthBadge(res.start_date);
             const nationalityName = res.customers?.nationality?.nationality || '';
             
-            // Duration calculation
             let diffDays = 0;
             if (res.start_date && res.end_date) {
               const s = new Date(res.start_date).getTime();
@@ -609,7 +800,6 @@ export default function ReservationsPage() {
               }
             }
 
-            // Financial Calculations
             const { fee, managerCommission, netFee } = calculateFinancials(
               res.fee,
               res.platforms?.plat_commission || 0,
@@ -633,7 +823,6 @@ export default function ReservationsPage() {
                 {/* Top Row: Customer Name (with Nationality in parentheses next to name) & Month Badge */}
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    {/* Customer Name with Nationality in parentheses */}
                     <h3 className={`text-base font-extrabold tracking-tight flex items-center gap-2 ${
                       res.canceled 
                         ? 'line-through text-rose-500' 
@@ -659,7 +848,7 @@ export default function ReservationsPage() {
                     )}
                   </div>
 
-                  {/* Month Badge & Action Icons: Eye, Pencil Edit, Trash Delete */}
+                  {/* Month Badge & Action Icons: Eye View & Pencil Edit (Delete removed from list) */}
                   <div className="flex items-center gap-1.5">
                     <span className="px-3 py-1 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-sm mr-1">
                       {monthBadge}
@@ -683,25 +872,12 @@ export default function ReservationsPage() {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleOpenEdit(res);
+                        handleOpenEditReservation(res);
                       }}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 transition-all cursor-pointer"
                       title="Επεξεργασία / Διόρθωση"
                     >
                       <Pencil className="w-4 h-4" />
-                    </button>
-
-                    {/* Delete Button */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeletingResId(res.reser_id);
-                      }}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
-                      title="Διαγραφή Κράτησης"
-                    >
-                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -712,7 +888,7 @@ export default function ReservationsPage() {
                   {diffDays > 0 && <span className="ml-1 text-slate-500">({diffDays} days)</span>}
                 </div>
 
-                {/* Fee / Manager Commission Line (Below Date) */}
+                {/* Fee / Manager Commission Line */}
                 <div className="mt-1 text-xs font-medium text-slate-400 flex items-center gap-2">
                   <span>Fee: <strong className={isDark ? 'text-slate-200' : 'text-slate-800'}>€{fee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</strong></span>
                   <span>/</span>
@@ -743,59 +919,116 @@ export default function ReservationsPage() {
         </div>
       )}
 
-      {/* ── EDIT / CORRECTION MODAL (Pencil Click) ── */}
-      {editingRes && (
+      {/* ── RESERVATION FORM MODAL (Create & Edit Mode with Customer Autocomplete & + New Customer) ── */}
+      {resFormModal?.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
           <div className={`w-full max-w-lg rounded-2xl border p-6 space-y-4 shadow-2xl relative transition-colors max-h-[90vh] overflow-y-auto ${
             isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
           }`}>
+            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <Pencil className="w-5 h-5 text-amber-400" />
-                <h3 className="text-lg font-bold">Επεξεργασία Κράτησης #{editingRes.reser_id}</h3>
+                {resFormModal.isEditing ? <Pencil className="w-5 h-5 text-amber-400" /> : <Plus className="w-5 h-5 text-emerald-400" />}
+                <h3 className="text-lg font-bold">
+                  {resFormModal.isEditing ? `Επεξεργασία Κράτησης #${resFormModal.reser_id}` : 'Νέα Κράτηση'}
+                </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setEditingRes(null)}
+                onClick={() => setResFormModal(null)}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={(e) => { e.preventDefault(); handleSaveEdit(); }} className="space-y-4 text-xs">
-              {/* Customer Name & Nationality */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1 text-slate-400">Όνομα Πελάτη</label>
-                  <input
-                    type="text"
-                    value={editingRes.customer_name || ''}
-                    onChange={(e) => setEditingRes({ ...editingRes, customer_name: e.target.value })}
-                    className={`w-full p-2.5 rounded-xl border font-semibold ${
-                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                    }`}
-                    required
-                  />
+            <form onSubmit={(e) => { e.preventDefault(); handleSaveReservationForm(); }} className="space-y-4 text-xs">
+              {/* Customer Autocomplete Input + "+ New Customer" Button */}
+              <div className="relative" ref={dropdownRef}>
+                <label className="block font-semibold mb-1 text-slate-400 flex items-center justify-between">
+                  <span>Πελάτης</span>
+                  {resFormModal.f_custom_id && (
+                    <span className="text-[10px] text-emerald-400 font-bold">✓ Επιλέχθηκε ID #{resFormModal.f_custom_id}</span>
+                  )}
+                </label>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder="Πληκτρολογήστε όνομα για αναζήτηση..."
+                      value={resFormModal.customer_name}
+                      onChange={(e) => {
+                        setResFormModal({
+                          ...resFormModal,
+                          customer_name: e.target.value,
+                          f_custom_id: undefined
+                        });
+                        setShowCustomerDropdown(true);
+                      }}
+                      onFocus={() => setShowCustomerDropdown(true)}
+                      className={`w-full p-2.5 rounded-xl border font-semibold pr-8 ${
+                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                      }`}
+                      required
+                    />
+                    <Search className="w-4 h-4 text-slate-400 absolute right-2.5 top-3 pointer-events-none" />
+                  </div>
+
+                  {/* "+ New Customer" Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewCustomerForm({
+                        name: resFormModal.customer_name || '',
+                        email: '',
+                        phone: '',
+                        f_nationallity_aid: resFormModal.f_nationallity_aid ? String(resFormModal.f_nationallity_aid) : ''
+                      });
+                      setShowNewCustomerModal(true);
+                    }}
+                    className="p-2.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0"
+                    title="Προσθήκη Νέου Πελάτη (+)"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>+</span>
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block font-semibold mb-1 text-slate-400">Εθνικότητα</label>
-                  <select
-                    value={editingRes.f_nationallity_aid || ''}
-                    onChange={(e) => setEditingRes({ ...editingRes, f_nationallity_aid: Number(e.target.value) })}
-                    className={`w-full p-2.5 rounded-xl border font-semibold ${
-                      isDark ? 'bg-slate-950 border-slate-800 text-sky-400' : 'bg-slate-50 border-slate-300 text-sky-600'
-                    }`}
-                  >
-                    <option value="">Επιλέξτε Εθνικότητα...</option>
-                    {nationalities.map(n => (
-                      <option key={n.nationality_aid} value={n.nationality_aid}>
-                        {n.nationality}
-                      </option>
+                {/* Autocomplete Dropdown List of Matching Customers */}
+                {showCustomerDropdown && matchingCustomers.length > 0 && (
+                  <div className={`absolute left-0 right-12 mt-1 max-h-48 overflow-y-auto rounded-xl border shadow-xl z-50 ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+                  }`}>
+                    {matchingCustomers.map((cust) => (
+                      <div
+                        key={cust.custom_id}
+                        onClick={() => {
+                          setResFormModal({
+                            ...resFormModal,
+                            f_custom_id: cust.custom_id,
+                            customer_name: cust.name,
+                            f_nationallity_aid: cust.f_nationallity_aid || cust.nationality?.nationality_aid
+                          });
+                          setShowCustomerDropdown(false);
+                        }}
+                        className={`p-2.5 border-b last:border-0 cursor-pointer flex items-center justify-between transition-colors ${
+                          isDark ? 'border-slate-800/60 hover:bg-slate-800/80' : 'border-slate-100 hover:bg-sky-50'
+                        }`}
+                      >
+                        <div>
+                          <p className="font-bold text-sm">{cust.name}</p>
+                          <p className="text-[11px] text-slate-400">{cust.email || 'No email'}</p>
+                        </div>
+                        {cust.nationality?.nationality && (
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-sky-500/20 text-sky-400 font-semibold border border-sky-500/30">
+                            {cust.nationality.nationality}
+                          </span>
+                        )}
+                      </div>
                     ))}
-                  </select>
-                </div>
+                  </div>
+                )}
               </div>
 
               {/* Dates Row */}
@@ -804,8 +1037,8 @@ export default function ReservationsPage() {
                   <label className="block font-semibold mb-1 text-slate-400">Ημερομηνία Έναρξης</label>
                   <input
                     type="date"
-                    value={editingRes.start_date || ''}
-                    onChange={(e) => setEditingRes({ ...editingRes, start_date: e.target.value })}
+                    value={resFormModal.start_date}
+                    onChange={(e) => setResFormModal({ ...resFormModal, start_date: e.target.value })}
                     className={`w-full p-2.5 rounded-xl border font-semibold ${
                       isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                     }`}
@@ -816,8 +1049,8 @@ export default function ReservationsPage() {
                   <label className="block font-semibold mb-1 text-slate-400">Ημερομηνία Λήξης</label>
                   <input
                     type="date"
-                    value={editingRes.end_date || ''}
-                    onChange={(e) => setEditingRes({ ...editingRes, end_date: e.target.value })}
+                    value={resFormModal.end_date}
+                    onChange={(e) => setResFormModal({ ...resFormModal, end_date: e.target.value })}
                     className={`w-full p-2.5 rounded-xl border font-semibold ${
                       isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                     }`}
@@ -833,8 +1066,8 @@ export default function ReservationsPage() {
                   <input
                     type="number"
                     step="0.01"
-                    value={editingRes.fee ?? 0}
-                    onChange={(e) => setEditingRes({ ...editingRes, fee: Number(e.target.value) })}
+                    value={resFormModal.fee}
+                    onChange={(e) => setResFormModal({ ...resFormModal, fee: Number(e.target.value) })}
                     className={`w-full p-2.5 rounded-xl border font-bold ${
                       isDark ? 'bg-slate-950 border-slate-800 text-emerald-400' : 'bg-slate-50 border-slate-300 text-emerald-600'
                     }`}
@@ -846,8 +1079,8 @@ export default function ReservationsPage() {
                   <input
                     type="number"
                     min="1"
-                    value={editingRes.num_of_visitors ?? 1}
-                    onChange={(e) => setEditingRes({ ...editingRes, num_of_visitors: Number(e.target.value) })}
+                    value={resFormModal.num_of_visitors}
+                    onChange={(e) => setResFormModal({ ...resFormModal, num_of_visitors: Number(e.target.value) })}
                     className={`w-full p-2.5 rounded-xl border font-semibold ${
                       isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                     }`}
@@ -858,8 +1091,8 @@ export default function ReservationsPage() {
                   <input
                     type="number"
                     min="0"
-                    value={editingRes.kids ?? 0}
-                    onChange={(e) => setEditingRes({ ...editingRes, kids: Number(e.target.value) })}
+                    value={resFormModal.kids}
+                    onChange={(e) => setResFormModal({ ...resFormModal, kids: Number(e.target.value) })}
                     className={`w-full p-2.5 rounded-xl border font-semibold ${
                       isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                     }`}
@@ -872,8 +1105,8 @@ export default function ReservationsPage() {
                 <div>
                   <label className="block font-semibold mb-1 text-slate-400">Πλατφόρμα</label>
                   <select
-                    value={editingRes.f_platform_id || ''}
-                    onChange={(e) => setEditingRes({ ...editingRes, f_platform_id: Number(e.target.value) })}
+                    value={resFormModal.f_platform_id}
+                    onChange={(e) => setResFormModal({ ...resFormModal, f_platform_id: Number(e.target.value) })}
                     className={`w-full p-2.5 rounded-xl border font-semibold ${
                       isDark ? 'bg-slate-950 border-slate-800 text-sky-400' : 'bg-slate-50 border-slate-300 text-sky-600'
                     }`}
@@ -889,8 +1122,8 @@ export default function ReservationsPage() {
                 <div>
                   <label className="block font-semibold mb-1 text-slate-400">Σπίτι</label>
                   <select
-                    value={editingRes.f_house_aid || ''}
-                    onChange={(e) => setEditingRes({ ...editingRes, f_house_aid: Number(e.target.value) })}
+                    value={resFormModal.f_house_aid}
+                    onChange={(e) => setResFormModal({ ...resFormModal, f_house_aid: Number(e.target.value) })}
                     className={`w-full p-2.5 rounded-xl border font-semibold ${
                       isDark ? 'bg-slate-950 border-slate-800 text-indigo-400' : 'bg-slate-50 border-slate-300 text-indigo-600'
                     }`}
@@ -909,8 +1142,8 @@ export default function ReservationsPage() {
                 <label className="block font-semibold mb-1 text-slate-400">Σημειώσεις / Σχόλια</label>
                 <textarea
                   rows={2}
-                  value={editingRes.notes || editingRes.comments || ''}
-                  onChange={(e) => setEditingRes({ ...editingRes, notes: e.target.value })}
+                  value={resFormModal.notes}
+                  onChange={(e) => setResFormModal({ ...resFormModal, notes: e.target.value })}
                   className={`w-full p-2.5 rounded-xl border font-normal ${
                     isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
@@ -920,19 +1153,23 @@ export default function ReservationsPage() {
 
               {/* Buttons */}
               <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => setDeletingResId(editingRes.reser_id!)}
-                  className="px-4 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Διαγραφή</span>
-                </button>
+                {resFormModal.isEditing ? (
+                  <button
+                    type="button"
+                    onClick={() => setDeletingResId(resFormModal.reser_id!)}
+                    className="px-4 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Διαγραφή</span>
+                  </button>
+                ) : (
+                  <div></div>
+                )}
 
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setEditingRes(null)}
+                    onClick={() => setResFormModal(null)}
                     className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-bold transition-all cursor-pointer"
                   >
                     Ακύρωση
@@ -941,12 +1178,182 @@ export default function ReservationsPage() {
                   <button
                     type="submit"
                     disabled={actionLoading}
-                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white hover:from-sky-400 hover:to-indigo-500 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-sky-500/20 disabled:opacity-50"
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-400 hover:to-teal-500 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 disabled:opacity-50"
                   >
                     {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    <span>Αποθήκευση</span>
+                    <span>{resFormModal.isEditing ? 'Αποθήκευση' : 'Δημιουργία Κράτησης'}</span>
                   </button>
                 </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── NEW CUSTOMER SUB-MODAL (+) ── */}
+      {showNewCustomerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+          <div className={`w-full max-w-md rounded-2xl border p-6 space-y-4 shadow-2xl relative transition-colors ${
+            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-sky-400" />
+                <h3 className="text-base font-bold">Προσθήκη Νέου Πελάτη</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewCustomerModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleSaveNewCustomer(); }} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-400">Όνομα Πελάτη *</label>
+                <input
+                  type="text"
+                  value={newCustomerForm.name}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })}
+                  className={`w-full p-2.5 rounded-xl border font-semibold ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-400">Email</label>
+                <input
+                  type="email"
+                  value={newCustomerForm.email}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
+                  className={`w-full p-2.5 rounded-xl border font-normal ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-slate-400">Τηλέφωνο</label>
+                <input
+                  type="text"
+                  value={newCustomerForm.phone}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
+                  className={`w-full p-2.5 rounded-xl border font-normal ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                />
+              </div>
+
+              {/* Nationality Combo Box + "+ New Nationality" Button */}
+              <div>
+                <label className="block font-semibold mb-1 text-slate-400">Εθνικότητα</label>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={newCustomerForm.f_nationallity_aid}
+                    onChange={(e) => setNewCustomerForm({ ...newCustomerForm, f_nationallity_aid: e.target.value })}
+                    className={`w-full p-2.5 rounded-xl border font-semibold ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-sky-400' : 'bg-slate-50 border-slate-300 text-sky-600'
+                    }`}
+                  >
+                    <option value="">Επιλέξτε Εθνικότητα...</option>
+                    {nationalities.map(n => (
+                      <option key={n.nationality_aid} value={n.nationality_aid}>
+                        {n.nationality}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowNewNationalityModal(true)}
+                    className="p-2.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0"
+                    title="Προσθήκη Νέας Εθνικότητας (+)"
+                  >
+                    <Globe className="w-4 h-4" />
+                    <span>+</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNewCustomerModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-bold cursor-pointer"
+                >
+                  Ακύρωση
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  {actionLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  <span>Αποθήκευση Πελάτη</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── NEW NATIONALITY SUB-MODAL (+) ── */}
+      {showNewNationalityModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+          <div className={`w-full max-w-sm rounded-2xl border p-6 space-y-4 shadow-2xl relative transition-colors ${
+            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Globe className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-base font-bold">Προσθήκη Νέας Εθνικότητας</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewNationalityModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleSaveNewNationality(); }} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold mb-1 text-slate-400">Όνομα Εθνικότητας / Χώρας *</label>
+                <input
+                  type="text"
+                  placeholder="π.χ. Italy, Spain, Switzerland..."
+                  value={newNationalityName}
+                  onChange={(e) => setNewNationalityName(e.target.value)}
+                  className={`w-full p-2.5 rounded-xl border font-semibold ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                  required
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNewNationalityModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-bold cursor-pointer"
+                >
+                  Ακύρωση
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  {actionLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  <span>Προσθήκη</span>
+                </button>
               </div>
             </form>
           </div>
@@ -1275,7 +1682,7 @@ export default function ReservationsPage() {
                   {/* Edit Button */}
                   <button
                     type="button"
-                    onClick={() => handleOpenEdit(selectedRes)}
+                    onClick={() => handleOpenEditReservation(selectedRes)}
                     className="px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <Pencil className="w-3.5 h-3.5" />
