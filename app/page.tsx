@@ -632,28 +632,31 @@ export default function ReservationsPage() {
                       : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md'
                 }`}
               >
-                {/* Top Row: Customer Name & Month Badge */}
+                {/* Top Row: Customer Name, Nationality Badge & Month Badge */}
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    {/* Customer Name */}
-                    <h3 className={`text-base font-extrabold tracking-tight flex items-center gap-2 ${
-                      res.canceled 
-                        ? 'line-through text-rose-500' 
-                        : isDark ? 'text-indigo-300' : 'text-indigo-900'
-                    }`}>
-                      {res.canceled && <Ban className="w-4 h-4 text-rose-500 shrink-0" />}
-                      <span>{res.customers?.name || 'Unknown Customer'}</span>
-                    </h3>
+                    {/* Customer Name & Nationality Badge Row */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className={`text-base font-extrabold tracking-tight flex items-center gap-2 ${
+                        res.canceled 
+                          ? 'line-through text-rose-500' 
+                          : isDark ? 'text-indigo-300' : 'text-indigo-900'
+                      }`}>
+                        {res.canceled && <Ban className="w-4 h-4 text-rose-500 shrink-0" />}
+                        <span>{res.customers?.name || 'Unknown Customer'}</span>
+                      </h3>
 
-                    {/* Nationality Subtitle Line (Directly under Customer Name) */}
-                    {nationalityName && (
-                      <p className="text-xs font-semibold text-sky-400 mt-0.5 flex items-center gap-1">
-                        <Globe className="w-3.5 h-3.5 shrink-0 text-sky-400" />
-                        <span>{nationalityName}</span>
-                      </p>
-                    )}
+                      {/* Prominent Nationality Badge */}
+                      {nationalityName && (
+                        <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-sky-500/15 text-sky-400 border border-sky-500/30 flex items-center gap-1 shadow-sm">
+                          <Globe className="w-3 h-3 text-sky-400 shrink-0" />
+                          <span>{nationalityName}</span>
+                        </span>
+                      )}
+                    </div>
 
-                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    {/* Status Badges Row (Cancelled / Expired) */}
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                       {res.canceled && (
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-500 border border-rose-500/30">
                           🚫 ΑΚΥΡΩΘΗΚΕ
