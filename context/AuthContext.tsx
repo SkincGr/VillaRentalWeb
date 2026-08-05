@@ -25,6 +25,7 @@ interface AuthContextType {
   assignedHouseIds: number[];
   theme: 'dark' | 'light';
   toggleTheme: () => void;
+  initialized: boolean;
   login: (emailOrUsername: string, role: UserRole, targetId?: number) => Promise<boolean>;
   logout: () => void;
 }
@@ -36,6 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
   const [assignedHouseIds, setAssignedHouseIds] = useState<number[]>([]);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [initialized, setInitialized] = useState(false);
   const router = useRouter();
 
   // Load initial theme & session from localStorage
@@ -58,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Error parsing session:', e);
       }
     }
+    setInitialized(true);
   }, []);
 
   const toggleTheme = () => {
@@ -154,6 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         assignedHouseIds,
         theme,
         toggleTheme,
+        initialized,
         login,
         logout
       }}
