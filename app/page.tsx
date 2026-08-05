@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
-import { Reservation, House } from '@/lib/supabaseClient';
+import { Reservation, House, Platform } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { 
   Eye, 
@@ -22,7 +22,11 @@ import {
   Receipt,
   PieChart,
   Trees,
-  AlertTriangle
+  AlertTriangle,
+  Pencil,
+  Trash2,
+  Save,
+  Plus
 } from 'lucide-react';
 
 export interface TaxKlimakaItem {
@@ -60,6 +64,12 @@ function formatDateDisplay(isoString: string | null | undefined): string {
   return isoString;
 }
 
+// Helper to format ISO date string for HTML <input type="date"> (YYYY-MM-DD)
+function formatDateInput(isoString: string | null | undefined): string {
+  if (!isoString) return '';
+  return isoString.split('T')[0];
+}
+
 // Helper to format Month Badge (e.g. Aug 2026)
 function getMonthBadge(isoString: string | null | undefined): string {
   if (!isoString) return '';
@@ -82,9 +92,6 @@ function isReservationExpired(endDateIso: string | null | undefined): boolean {
 }
 
 // Helper to calculate single reservation financials:
-// Platfor Commision = Fee * Platforms.PlatCommission
-// Manager Commision = (Fee - Platfor Commision) * Platforms.Commission
-// NetFee = Fee - Platfor Commision - Manager Commision
 function calculateFinancials(feeNum: number, platCommRate: number, managerCommRate: number) {
   const fee = Number(feeNum || 0);
   const platComm = fee * Number(platCommRate || 0);
@@ -174,7 +181,6 @@ function computePeriodFinancials(resList: Reservation[], taxItems: TaxKlimakaIte
     totalNetFee += netFee;
   });
 
-  // Perivalon = taxableDays * €15
   const perivalon = taxableDays * 15;
   const totalCommissions = totalPlatComm + totalMgrComm + perivalon;
   const tax = calculateProgressiveTax(taxableFee, taxItems);
@@ -202,11 +208,12 @@ export default function ReservationsPage() {
   
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [houses, setHouses] = useState<House[]>([]);
+  const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [taxItems, setTaxItems] = useState<TaxKlimakaItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [updatingCancel, setUpdatingCancel] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // Filters matching user request
+  // Filters
   const [selectedYear, setSelectedYear] = useState<string>('2026');
   const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
   const [onlyCurrent, setOnlyCurrent] = useState<boolean>(false);
@@ -215,6 +222,8 @@ export default function ReservationsPage() {
   // Modals
   const [selectedRes, setSelectedRes] = useState<Reservation | null>(null);
   const [showFinancialModal, setShowFinancialModal] = useState<boolean>(false);
+  const [editingRes, setEditingRes] = useState<Partial<Reservation> & { customer_name?: string } | null>(null);
+  const [deletingResId, setDeletingResId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -240,6 +249,10 @@ export default function ReservationsPage() {
 
       if (json.taxKlimakaItems) {
         setTaxItems(json.taxKlimakaItems);
+      }
+
+      if (json.platforms) {
+        setPlatforms(json.platforms);
       }
     } catch (err) {
       console.error('Fetch error:', err);
@@ -269,7 +282,7 @@ export default function ReservationsPage() {
 
   // Toggle reservation cancellation status
   const handleToggleCancel = async (res: Reservation) => {
-    setUpdatingCancel(true);
+    setActionLoading(true);
     const newStatus = !res.canceled;
 
     try {
@@ -290,7 +303,81 @@ export default function ReservationsPage() {
       console.error('Error toggling cancellation:', err);
       alert('Σφάλμα σύνδεσης κατά την ακύρωση/επαναφορά');
     } finally {
-      setUpdatingCancel(false);
+      setActionLoading(false);
+    }
+  };
+
+  // Open Edit Modal for a reservation
+  const handleOpenEdit = (res: Reservation) => {
+    setEditingRes({
+      reser_id: res.reser_id,
+      f_custom_id: res.f_custom_id,
+      customer_name: res.customers?.name || '',
+      start_date: formatDateInput(res.start_date),
+      end_date: formatDateInput(res.end_date),
+      fee: res.fee,
+      num_of_visitors: res.num_of_visitors,
+      kids: res.kids,
+      f_platform_id: res.f_platform_id,
+      f_house_aid: res.f_house_aid || 1,
+      notes: res.notes || '',
+      comments: res.comments || ''
+    });
+  };
+
+  // Save edited reservation
+  const handleSaveEdit = async () => {
+    if (!editingRes || !editingRes.reser_id) return;
+    setActionLoading(true);
+
+    try {
+      const response = await fetch('/api/reservations/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingRes)
+      });
+
+      const json = await response.json();
+      if (json.success) {
+        await fetchData(); // Re-fetch clean joined data
+        setEditingRes(null);
+        setSelectedRes(null);
+      } else {
+        alert('Σφάλμα αποθήκευσης: ' + (json.error || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error('Error saving reservation:', err);
+      alert('Σφάλμα σύνδεσης κατά την αποθήκευση');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Confirm & Delete reservation
+  const handleDeleteReservation = async (reserId: number) => {
+    setActionLoading(true);
+
+    try {
+      const response = await fetch('/api/reservations/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reser_id: reserId })
+      });
+
+      const json = await response.json();
+      if (json.success) {
+        setReservations(prev => prev.filter(r => r.reser_id !== reserId));
+        setDeletingResId(null);
+        setSelectedRes(null);
+        setEditingRes(null);
+      } else {
+        alert('Σφάλμα διαγραφής: ' + (json.error || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error('Error deleting reservation:', err);
+      alert('Σφάλμα σύνδεσης κατά τη διαγραφή');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -312,7 +399,7 @@ export default function ReservationsPage() {
     return true;
   });
 
-  // 2. FILTERED RESERVATIONS FOR THE CARD LIST (sorted by start_date ASCENDING, respects hideCancelled & onlyCurrent toggles)
+  // 2. FILTERED RESERVATIONS FOR THE CARD LIST (sorted by start_date ASCENDING)
   const filteredReservations = baseYearAndHouseReservations
     .filter((res) => {
       if (hideCancelled && res.canceled) {
@@ -331,7 +418,7 @@ export default function ReservationsPage() {
   const listTotalCount = filteredReservations.length;
   const listCancelledCount = filteredReservations.filter(r => r.canceled).length;
 
-  // ── INCOME FOR THE SUMMARY BAR (Sum of Net Fee for non-canceled VISIBLE reservations on screen) ──
+  // INCOME FOR THE SUMMARY BAR (Sum of Net Fee for non-canceled VISIBLE reservations on screen)
   const visibleNetIncome = filteredReservations
     .filter(r => !r.canceled)
     .reduce((sum, res) => {
@@ -343,7 +430,7 @@ export default function ReservationsPage() {
       return sum + netFee;
     }, 0);
 
-  // ── FINANCIAL MODAL CALCULATIONS (Always uses ALL records for selected year & house!) ──
+  // FINANCIAL MODAL CALCULATIONS (Always uses ALL records for selected year & house)
   const actualFinancials = computePeriodFinancials(baseYearAndHouseReservations, taxItems);
 
   // Potential Financials (assuming 0 cancellations)
@@ -352,7 +439,6 @@ export default function ReservationsPage() {
     taxItems
   );
 
-  // Loss Due to Cancellations = Potential Net Income After Tax - Actual Net Income After Tax
   const cancellationLoss = Math.max(0, potentialFinancials.netIncomeAfterTax - actualFinancials.netIncomeAfterTax);
 
   const isDark = theme === 'dark';
@@ -446,7 +532,7 @@ export default function ReservationsPage() {
           </div>
         </div>
 
-        {/* Counter & Summary Line: Reservations | Income (Visible on Screen) | Financial Details Button */}
+        {/* Counter & Summary Line: Reservations | Income | Financial Details Button */}
         <div className={`mt-3 pt-3 border-t text-xs font-semibold flex flex-wrap items-center justify-between gap-2.5 ${
           isDark ? 'border-slate-800 text-slate-400' : 'border-sky-200/80 text-sky-900'
         }`}>
@@ -518,7 +604,7 @@ export default function ReservationsPage() {
               }
             }
 
-            // Financial Calculations matching user formula
+            // Financial Calculations
             const { fee, managerCommission, netFee } = calculateFinancials(
               res.fee,
               res.platforms?.plat_commission || 0,
@@ -564,11 +650,13 @@ export default function ReservationsPage() {
                     </div>
                   </div>
 
-                  {/* Month Badge & Eye Button */}
-                  <div className="flex items-center gap-2">
-                    <span className="px-3 py-1 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-sm">
+                  {/* Month Badge & Action Icons: Eye, Pencil Edit, Trash Delete */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="px-3 py-1 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-sm mr-1">
                       {monthBadge}
                     </span>
+
+                    {/* Eye Button */}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -578,7 +666,33 @@ export default function ReservationsPage() {
                       className="p-1.5 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-sky-500/10 transition-all cursor-pointer"
                       title="Προβολή"
                     >
-                      <Eye className="w-4.5 h-4.5" />
+                      <Eye className="w-4 h-4" />
+                    </button>
+
+                    {/* Edit Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEdit(res);
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 transition-all cursor-pointer"
+                      title="Επεξεργασία / Διόρθωση"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+
+                    {/* Delete Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingResId(res.reser_id);
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
+                      title="Διαγραφή Κράτησης"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -617,6 +731,236 @@ export default function ReservationsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── EDIT / CORRECTION MODAL (Pencil Click) ── */}
+      {editingRes && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className={`w-full max-w-lg rounded-2xl border p-6 space-y-4 shadow-2xl relative transition-colors max-h-[90vh] overflow-y-auto ${
+            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-amber-400" />
+                <h3 className="text-lg font-bold">Επεξεργασία Κράτησης #{editingRes.reser_id}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingRes(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleSaveEdit(); }} className="space-y-4 text-xs">
+              {/* Customer Name */}
+              <div>
+                <label className="block font-semibold mb-1 text-slate-400">Όνομα Πελάτη</label>
+                <input
+                  type="text"
+                  value={editingRes.customer_name || ''}
+                  onChange={(e) => setEditingRes({ ...editingRes, customer_name: e.target.value })}
+                  className={`w-full p-2.5 rounded-xl border font-semibold ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                  required
+                />
+              </div>
+
+              {/* Dates Row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-400">Ημερομηνία Έναρξης</label>
+                  <input
+                    type="date"
+                    value={editingRes.start_date || ''}
+                    onChange={(e) => setEditingRes({ ...editingRes, start_date: e.target.value })}
+                    className={`w-full p-2.5 rounded-xl border font-semibold ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    }`}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-400">Ημερομηνία Λήξης</label>
+                  <input
+                    type="date"
+                    value={editingRes.end_date || ''}
+                    onChange={(e) => setEditingRes({ ...editingRes, end_date: e.target.value })}
+                    className={`w-full p-2.5 rounded-xl border font-semibold ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    }`}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Fee & Visitors */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-400">Αρχικό Fee (€)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editingRes.fee ?? 0}
+                    onChange={(e) => setEditingRes({ ...editingRes, fee: Number(e.target.value) })}
+                    className={`w-full p-2.5 rounded-xl border font-bold ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-emerald-400' : 'bg-slate-50 border-slate-300 text-emerald-600'
+                    }`}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-400">Ενήλικες</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editingRes.num_of_visitors ?? 1}
+                    onChange={(e) => setEditingRes({ ...editingRes, num_of_visitors: Number(e.target.value) })}
+                    className={`w-full p-2.5 rounded-xl border font-semibold ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-400">Παιδιά</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingRes.kids ?? 0}
+                    onChange={(e) => setEditingRes({ ...editingRes, kids: Number(e.target.value) })}
+                    className={`w-full p-2.5 rounded-xl border font-semibold ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Platform & House */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-400">Πλατφόρμα</label>
+                  <select
+                    value={editingRes.f_platform_id || ''}
+                    onChange={(e) => setEditingRes({ ...editingRes, f_platform_id: Number(e.target.value) })}
+                    className={`w-full p-2.5 rounded-xl border font-semibold ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-sky-400' : 'bg-slate-50 border-slate-300 text-sky-600'
+                    }`}
+                  >
+                    {platforms.map(p => (
+                      <option key={p.platform_id} value={p.platform_id}>
+                        {p.name} {p.tax_able ? '(Taxable)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-400">Σπίτι</label>
+                  <select
+                    value={editingRes.f_house_aid || ''}
+                    onChange={(e) => setEditingRes({ ...editingRes, f_house_aid: Number(e.target.value) })}
+                    className={`w-full p-2.5 rounded-xl border font-semibold ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-indigo-400' : 'bg-slate-50 border-slate-300 text-indigo-600'
+                    }`}
+                  >
+                    {houses.map(h => (
+                      <option key={h.house_aid} value={h.house_aid}>
+                        {h.house_name?.trim() || `House #${h.house_aid}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block font-semibold mb-1 text-slate-400">Σημειώσεις / Σχόλια</label>
+                <textarea
+                  rows={2}
+                  value={editingRes.notes || editingRes.comments || ''}
+                  onChange={(e) => setEditingRes({ ...editingRes, notes: e.target.value })}
+                  className={`w-full p-2.5 rounded-xl border font-normal ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                  placeholder="Επιπλέον πληροφορίες..."
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeletingResId(editingRes.reser_id!)}
+                  className="px-4 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Διαγραφή</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingRes(null)}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Ακύρωση
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white hover:from-sky-400 hover:to-indigo-500 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-sky-500/20 disabled:opacity-50"
+                  >
+                    {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    <span>Αποθήκευση</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── DELETE CONFIRMATION MODAL ── */}
+      {deletingResId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+          <div className={`w-full max-w-sm rounded-2xl border p-6 space-y-4 shadow-2xl relative transition-colors ${
+            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            <div className="flex items-center gap-3 text-rose-500">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-extrabold">Επιβεβαίωση Διαγραφής</h3>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Είστε σίγουροι ότι θέλετε να διαγράψετε οριστικά την κράτηση <strong>#{deletingResId}</strong>; Η ενέργεια αυτή δεν μπορεί να αναιρεθεί.
+            </p>
+
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeletingResId(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-bold transition-all cursor-pointer"
+              >
+                Ακύρωση
+              </button>
+
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => handleDeleteReservation(deletingResId)}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-rose-600/20 disabled:opacity-50"
+              >
+                {actionLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                <span>Οριστική Διαγραφή</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -892,37 +1236,50 @@ export default function ReservationsPage() {
                 )}
               </div>
 
-              {/* Modal Footer with Cancel / Reactivate Toggle Button */}
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  disabled={updatingCancel}
-                  onClick={() => handleToggleCancel(selectedRes)}
-                  className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50 ${
-                    selectedRes.canceled
-                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
-                      : 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/20'
-                  }`}
-                >
-                  {updatingCancel ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : selectedRes.canceled ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Επαναφορά Κράτησης</span>
-                    </>
-                  ) : (
-                    <>
-                      <Ban className="w-4 h-4" />
-                      <span>Ακύρωση Κράτησης</span>
-                    </>
-                  )}
-                </button>
+              {/* Modal Footer with Actions: Edit, Delete, Toggle Cancel */}
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  {/* Edit Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(selectedRes)}
+                    className="px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Επεξεργασία</span>
+                  </button>
+
+                  {/* Toggle Cancel Button */}
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={() => handleToggleCancel(selectedRes)}
+                    className={`px-3 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md disabled:opacity-50 ${
+                      selectedRes.canceled
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        : 'bg-rose-600 hover:bg-rose-500 text-white'
+                    }`}
+                  >
+                    {actionLoading ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : selectedRes.canceled ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Επαναφορά</span>
+                      </>
+                    ) : (
+                      <>
+                        <Ban className="w-3.5 h-3.5" />
+                        <span>Ακύρωση</span>
+                      </>
+                    )}
+                  </button>
+                </div>
 
                 <button
                   type="button"
                   onClick={() => setSelectedRes(null)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-bold transition-all cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-bold transition-all cursor-pointer"
                 >
                   Κλείσιμο
                 </button>
