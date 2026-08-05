@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Reservation, House } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { 
@@ -19,6 +19,14 @@ import {
   Ban
 } from 'lucide-react';
 
+export interface TaxKlimakaItem {
+  tax_klimaka_items_aid: number;
+  f_tax_klimaka_aid: number;
+  from_amount: number;
+  to_amount: number;
+  pososto: number;
+}
+
 function isPlatformTaxable(platform: any): boolean {
   if (!platform) return false;
   const val = platform.tax_able;
@@ -31,7 +39,100 @@ function calculateFinancials(feeNum: number, platCommRate: number, managerCommRa
   const remaining = fee - platComm;
   const mgrComm = remaining * Number(managerCommRate || 0);
   const netFee = fee - platComm - mgrComm;
-  return { fee, netFee };
+  return { fee, netFee, platComm, mgrComm };
+}
+
+function calculateProgressiveTax(taxableGrossFee: number, items: TaxKlimakaItem[]): number {
+  if (taxableGrossFee <= 0) return 0;
+  
+  const brackets = items.length > 0 
+    ? items.filter(i => i.f_tax_klimaka_aid === 1).sort((a, b) => a.from_amount - b.from_amount)
+    : [
+        { tax_klimaka_items_aid: 1, f_tax_klimaka_aid: 1, from_amount: 0, to_amount: 12000, pososto: 15 },
+        { tax_klimaka_items_aid: 2, f_tax_klimaka_aid: 1, from_amount: 12000, to_amount: 25000, pososto: 35 },
+        { tax_klimaka_items_aid: 3, f_tax_klimaka_aid: 1, from_amount: 25000, to_amount: 1000000, pososto: 45 }
+      ];
+
+  let totalTax = 0;
+  for (const b of brackets) {
+    if (taxableGrossFee > b.from_amount) {
+      const taxableInBracket = Math.min(taxableGrossFee, b.to_amount) - b.from_amount;
+      totalTax += taxableInBracket * (b.pososto / 100);
+    }
+  }
+  return totalTax;
+}
+
+function computePeriodFinancials(resList: Reservation[], taxItems: TaxKlimakaItem[]) {
+  let activeCount = 0;
+  let cancelCount = 0;
+  let totalFee = 0;
+  let taxableFee = 0;
+  let totalDays = 0;
+  let taxableDays = 0;
+  let totalPlatComm = 0;
+  let totalMgrComm = 0;
+  let totalNetFee = 0;
+
+  resList.forEach(res => {
+    if (res.canceled) {
+      cancelCount++;
+      return;
+    }
+
+    activeCount++;
+    const fee = Number(res.fee || 0);
+    const platRate = Number(res.platforms?.plat_commission || 0);
+    const mgrRate = Number(res.platforms?.commission || 0);
+    const isTaxable = isPlatformTaxable(res.platforms);
+
+    let days = 0;
+    if (res.start_date && res.end_date) {
+      const s = new Date(res.start_date).getTime();
+      const e = new Date(res.end_date).getTime();
+      if (!isNaN(s) && !isNaN(e)) {
+        days = Math.round(Math.abs(e - s) / (1000 * 60 * 60 * 24));
+      }
+    }
+
+    totalFee += fee;
+    totalDays += days;
+
+    if (isTaxable) {
+      taxableFee += fee;
+      taxableDays += days;
+    }
+
+    const platComm = fee * platRate;
+    const remaining = fee - platComm;
+    const mgrComm = remaining * mgrRate;
+    const netFee = fee - platComm - mgrComm;
+
+    totalPlatComm += platComm;
+    totalMgrComm += mgrComm;
+    totalNetFee += netFee;
+  });
+
+  const perivalon = taxableDays * 15;
+  const totalCommissions = totalPlatComm + totalMgrComm + perivalon;
+  const tax = calculateProgressiveTax(taxableFee, taxItems);
+  const netIncomeAfterTax = totalNetFee - tax;
+
+  return {
+    activeCount,
+    cancelCount,
+    totalFee,
+    taxableFee,
+    totalDays,
+    taxableDays,
+    totalPlatComm,
+    totalMgrComm,
+    perivalon,
+    totalCommissions,
+    totalNetFee,
+    tax,
+    netIncomeAfterTax
+  };
 }
 
 function getYearFromIso(isoString: string | null | undefined): string {
@@ -52,15 +153,22 @@ function formatDateDisplay(isoString: string | null | undefined): string {
 export default function YearCalendarPage() {
   const { theme, assignedHouseIds, selectedHouseId: globalSelectedHouseId } = useAuth();
   
-  const [selectedYear, setSelectedYear] = useState<number>(2026);
-  const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedHouseId, setSelectedHouseId] = useState<number>(1);
   
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [houses, setHouses] = useState<House[]>([]);
+  const [taxItems, setTaxItems] = useState<TaxKlimakaItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Selected reservation details popup
   const [activeResPopup, setActiveResPopup] = useState<Reservation | null>(null);
+
+  // Reference for current month card scrolling
+  const currentMonthRef = useRef<HTMLDivElement | null>(null);
+
+  const currentMonthIdx = new Date().getMonth();
+  const currentYearNum = new Date().getFullYear();
 
   useEffect(() => {
     fetchData();
@@ -72,16 +180,25 @@ export default function YearCalendarPage() {
       const res = await fetch('/api/reservations', { cache: 'no-store' });
       const json = await res.json();
       
-      if (json.houses) {
+      if (json.houses && json.houses.length > 0) {
         let filteredHouses = json.houses;
         if (assignedHouseIds.length > 0) {
           filteredHouses = json.houses.filter((h: House) => assignedHouseIds.includes(h.house_aid));
         }
         setHouses(filteredHouses);
+        
+        // Default to first specific house (no "ALL" option)
+        if (filteredHouses.length > 0) {
+          setSelectedHouseId(filteredHouses[0].house_aid);
+        }
       }
       
       if (json.reservations) {
         setReservations(json.reservations);
+      }
+
+      if (json.taxKlimakaItems) {
+        setTaxItems(json.taxKlimakaItems);
       }
     } catch (err) {
       console.error('Fetch error:', err);
@@ -90,32 +207,33 @@ export default function YearCalendarPage() {
     }
   }
 
-  // Sync global selected house
+  // Sync global selected house if set to a specific house
   useEffect(() => {
-    if (globalSelectedHouseId) {
-      setSelectedHouseId(globalSelectedHouseId);
+    if (globalSelectedHouseId && globalSelectedHouseId !== 'ALL') {
+      setSelectedHouseId(Number(globalSelectedHouseId));
     }
   }, [globalSelectedHouseId]);
 
-  // Extract available years
-  const availableYears = Array.from(
-    new Set(reservations.map(r => parseInt(getYearFromIso(r.start_date), 10)).filter(Boolean))
-  ).sort((a, b) => b - a);
+  // Scroll to current month when loading completes or year changes
+  useEffect(() => {
+    if (!loading && selectedYear === currentYearNum && currentMonthRef.current) {
+      setTimeout(() => {
+        currentMonthRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    }
+  }, [loading, selectedYear, currentYearNum]);
 
   // Active selected house metadata
   const currentHouse = houses.find(h => h.house_aid === selectedHouseId) || houses[0];
   const startPeriodStr = currentHouse?.start_period_date || '05-15'; // Default 15 May
   const endPeriodStr = currentHouse?.end_period_date || '10-15';     // Default 15 October
 
-  // 1. Filter active non-canceled reservations for selected year & house
+  // 1. Filter active non-canceled reservations for selected year & SPECIFIC house
   const activeYearReservations = reservations.filter(res => {
     if (res.canceled) return false;
 
-    if (assignedHouseIds.length > 0 && res.f_house_aid) {
-      if (!assignedHouseIds.includes(res.f_house_aid)) return false;
-    }
-
-    if (selectedHouseId !== 'ALL' && res.f_house_aid !== selectedHouseId) {
+    // Must match the single selected house
+    if (res.f_house_aid !== selectedHouseId) {
       return false;
     }
 
@@ -129,8 +247,6 @@ export default function YearCalendarPage() {
   const totalReservationsCount = activeYearReservations.length;
 
   let totalDaysBooked = 0;
-  let totalNetProfit = 0;
-
   activeYearReservations.forEach(res => {
     if (res.start_date && res.end_date) {
       const s = new Date(res.start_date).getTime();
@@ -140,14 +256,11 @@ export default function YearCalendarPage() {
         totalDaysBooked += days;
       }
     }
-
-    const { netFee } = calculateFinancials(
-      res.fee,
-      res.platforms?.plat_commission || 0,
-      res.platforms?.commission || 0
-    );
-    totalNetProfit += netFee;
   });
+
+  // Calculate Net Income AFTER Tax using progressive tax brackets
+  const periodFinancials = computePeriodFinancials(activeYearReservations, taxItems);
+  const netIncomeAfterTax = periodFinancials.netIncomeAfterTax;
 
   // Month names (English matching screenshot: January, February, March...)
   const monthNames = [
@@ -177,7 +290,6 @@ export default function YearCalendarPage() {
     const dStr = String(dayNum).padStart(2, '0');
     const mmdd = `${mStr}-${dStr}`;
 
-    // Normalize start/end period strings (e.g. '2026-05-15' or '05-15')
     const startMMDD = startPeriodStr.includes('-') && startPeriodStr.length > 5 ? startPeriodStr.slice(5) : startPeriodStr;
     const endMMDD = endPeriodStr.includes('-') && endPeriodStr.length > 5 ? endPeriodStr.slice(5) : endPeriodStr;
 
@@ -200,12 +312,12 @@ export default function YearCalendarPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
-      {/* ── PURPLE HEADER BAR (matching screenshot) ── */}
-      <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white rounded-2xl shadow-xl overflow-hidden">
-        {/* Top Title Bar */}
-        <div className="px-6 py-4 border-b border-white/10 flex flex-wrap items-center justify-between gap-3">
+      {/* ── PURPLE HEADER BAR (Year Selector centered in the middle of Year Calendar line) ── */}
+      <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white rounded-2xl shadow-xl p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* Left: Title & Operating Period Subtitle */}
           <div className="flex items-center gap-3">
-            <CalendarIcon className="w-6 h-6 text-indigo-200" />
+            <CalendarIcon className="w-6 h-6 text-indigo-200 shrink-0" />
             <div>
               <h1 className="text-xl font-extrabold tracking-wide">Year Calendar</h1>
               <p className="text-xs text-indigo-200">
@@ -214,50 +326,49 @@ export default function YearCalendarPage() {
             </div>
           </div>
 
-          {/* House Filter Dropdown */}
+          {/* Center: Year Selector Navigation (< 2026 >) in the same line */}
+          <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-xl border border-white/20 shadow-inner mx-auto sm:mx-0">
+            <button
+              type="button"
+              onClick={() => setSelectedYear(prev => prev - 1)}
+              className="p-1 rounded-lg hover:bg-white/20 transition-all text-white cursor-pointer active:scale-95"
+              title="Προηγούμενο Έτος"
+            >
+              <ChevronLeft className="w-5 h-5 stroke-[3]" />
+            </button>
+
+            <span className="text-xl font-black tracking-widest text-white px-2">
+              {selectedYear}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setSelectedYear(prev => prev + 1)}
+              className="p-1 rounded-lg hover:bg-white/20 transition-all text-white cursor-pointer active:scale-95"
+              title="Επόμενο Έτος"
+            >
+              <ChevronRight className="w-5 h-5 stroke-[3]" />
+            </button>
+          </div>
+
+          {/* Right: Single House Selector Dropdown (No "Όλα τα Σπίτια") */}
           <div className="flex items-center gap-2">
             <select
               value={selectedHouseId}
-              onChange={(e) => setSelectedHouseId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
-              className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-white text-xs font-bold focus:outline-none backdrop-blur-md cursor-pointer"
+              onChange={(e) => setSelectedHouseId(Number(e.target.value))}
+              className="px-3.5 py-2 rounded-xl bg-white/10 border border-white/25 text-white text-xs font-extrabold focus:outline-none backdrop-blur-md cursor-pointer shadow-sm"
             >
-              <option value="ALL" className="bg-slate-900 text-white">Όλα τα Σπίτια</option>
               {houses.map(h => (
-                <option key={h.house_aid} value={h.house_aid} className="bg-slate-900 text-white">
-                  {h.house_name?.trim() || `House #${h.house_aid}`}
+                <option key={h.house_aid} value={h.house_aid} className="bg-slate-900 text-white font-bold">
+                  {h.house_name?.trim() || `Σπίτι #${h.house_aid}`}
                 </option>
               ))}
             </select>
           </div>
         </div>
-
-        {/* Year Navigation Bar with Left & Right Arrows */}
-        <div className="px-6 py-3 bg-black/10 flex items-center justify-between max-w-sm mx-auto">
-          <button
-            type="button"
-            onClick={() => setSelectedYear(prev => prev - 1)}
-            className="p-2 rounded-xl hover:bg-white/15 transition-all text-white cursor-pointer active:scale-95"
-            title="Προηγούμενο Έτος"
-          >
-            <ChevronLeft className="w-6 h-6 stroke-[3]" />
-          </button>
-
-          <span className="text-2xl font-black tracking-wider text-white">
-            {selectedYear}
-          </span>
-
-          <button
-            type="button"
-            onClick={() => setSelectedYear(prev => prev + 1)}
-            className="p-2 rounded-xl hover:bg-white/15 transition-all text-white cursor-pointer active:scale-95"
-            title="Επόμενο Έτος"
-          >
-            <ChevronRight className="w-6 h-6 stroke-[3]" />
-          </button>
-        </div>
       </div>
 
-      {/* ── TOP 3 SUMMARY CARDS ── */}
+      {/* ── TOP 3 SUMMARY CARDS (Income displays Net Income After Tax) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Card 1: Total Reservations */}
         <div className={`p-4 rounded-2xl border shadow-sm flex items-center gap-4 transition-all ${
@@ -295,7 +406,7 @@ export default function YearCalendarPage() {
           </div>
         </div>
 
-        {/* Card 3: Income Net Profit */}
+        {/* Card 3: Income Net Profit (Displays Net Income After Tax) */}
         <div className={`p-4 rounded-2xl border shadow-sm flex items-center gap-4 transition-all ${
           isDark 
             ? 'bg-amber-950/30 border-amber-800/50 text-amber-200' 
@@ -307,9 +418,9 @@ export default function YearCalendarPage() {
           <div>
             <div className="text-xs font-semibold text-amber-600 dark:text-amber-400">Income</div>
             <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
-              €{totalNetProfit.toLocaleString('el-GR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              €{netIncomeAfterTax.toLocaleString('el-GR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
             </div>
-            <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Net Profit</div>
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Net Profit (After Tax)</div>
           </div>
         </div>
       </div>
@@ -346,6 +457,7 @@ export default function YearCalendarPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {monthNames.map((monthName, monthIdx) => {
             const bookedCount = getBookedDaysCountForMonth(selectedYear, monthIdx);
+            const isCurrentMonth = selectedYear === currentYearNum && monthIdx === currentMonthIdx;
             
             // Calculate calendar grid for this month
             const firstDayIndex = new Date(selectedYear, monthIdx, 1).getDay(); // 0 = Sunday
@@ -354,16 +466,30 @@ export default function YearCalendarPage() {
             return (
               <div
                 key={monthName}
-                className={`p-4 rounded-2xl border shadow-md transition-all ${
-                  isDark 
-                    ? 'bg-slate-900/90 border-slate-800 hover:border-slate-700' 
-                    : 'bg-white border-slate-200 hover:shadow-lg'
+                ref={isCurrentMonth ? currentMonthRef : null}
+                className={`p-4 rounded-2xl border shadow-md transition-all relative ${
+                  isCurrentMonth
+                    ? isDark 
+                      ? 'bg-slate-900 border-indigo-500/80 ring-2 ring-indigo-500/40 shadow-indigo-500/10' 
+                      : 'bg-white border-indigo-500/80 ring-2 ring-indigo-500/30 shadow-indigo-500/10'
+                    : isDark 
+                      ? 'bg-slate-900/90 border-slate-800 hover:border-slate-700' 
+                      : 'bg-white border-slate-200 hover:shadow-lg'
                 }`}
               >
+                {/* Current Month Active Badge */}
+                {isCurrentMonth && (
+                  <span className="absolute -top-2.5 right-4 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-indigo-500 to-sky-500 text-white shadow-md">
+                    Τρέχων Μήνας
+                  </span>
+                )}
+
                 {/* Month Card Header */}
                 <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800/40">
                   <h3 className={`text-base font-extrabold ${
-                    isDark ? 'text-indigo-300' : 'text-indigo-900'
+                    isCurrentMonth 
+                      ? 'text-indigo-400 font-black' 
+                      : isDark ? 'text-indigo-300' : 'text-indigo-900'
                   }`}>
                     {monthName}
                   </h3>
