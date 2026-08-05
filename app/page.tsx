@@ -377,13 +377,11 @@ export default function ReservationsPage() {
     try {
       let finalCustomId = resFormModal.f_custom_id;
 
-      // If user typed a customer name without selecting from dropdown, search or create customer
       if (!finalCustomId && resFormModal.customer_name.trim()) {
         const existingCust = customers.find(c => c.name.toLowerCase() === resFormModal.customer_name.trim().toLowerCase());
         if (existingCust) {
           finalCustomId = existingCust.custom_id;
         } else {
-          // Create customer automatically
           const custRes = await fetch('/api/customers/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -451,7 +449,6 @@ export default function ReservationsPage() {
       if (json.success && json.customer) {
         setCustomers(prev => [...prev, json.customer]);
         
-        // Select newly created customer in Reservation Modal
         if (resFormModal) {
           setResFormModal({
             ...resFormModal,
@@ -492,7 +489,6 @@ export default function ReservationsPage() {
       if (json.success && json.nationality) {
         setNationalities(prev => [...prev, json.nationality].sort((a, b) => a.nationality.localeCompare(b.nationality)));
         
-        // Preselect in new customer form or reservation modal
         if (showNewCustomerModal) {
           setNewCustomerForm(prev => ({ ...prev, f_nationallity_aid: String(json.nationality.nationality_aid) }));
         } else if (resFormModal) {
@@ -631,8 +627,8 @@ export default function ReservationsPage() {
   const isDark = theme === 'dark';
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5 pb-12">
-      {/* ── FILTER & SUMMARY PANEL (WITH NEW RESERVATION BUTTON) ── */}
+    <div className="max-w-4xl mx-auto space-y-5 pb-12 relative">
+      {/* ── PROMINENT TOP PANEL WITH + ΝΕΑ ΚΡΑΤΗΣΗ BUTTON ── */}
       <div className={`p-4 rounded-2xl border shadow-sm transition-colors ${
         isDark 
           ? 'bg-slate-900/90 border-slate-800' 
@@ -682,23 +678,23 @@ export default function ReservationsPage() {
             </div>
           </div>
 
-          {/* Action Buttons: New Reservation (+), Toggle Όλα/Τρέχοντα & Hide Cancelled */}
+          {/* Right Action Buttons: PROMINENT GREEN "+ Νέα Κράτηση", Toggle Όλα/Τρέχοντα & Hide Cancelled */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* "+ Νέα Κράτηση" Button in Header Panel */}
+            {/* PROMINENT "+ Νέα Κράτηση" BUTTON */}
             <button
               type="button"
               onClick={handleOpenCreateReservation}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-500/30 transition-all cursor-pointer ring-2 ring-emerald-400/50 hover:scale-105 active:scale-95"
             >
-              <Plus className="w-4 h-4" />
-              <span>Νέα Κράτηση</span>
+              <Plus className="w-4.5 h-4.5 stroke-[3]" />
+              <span>+ Νέα Κράτηση</span>
             </button>
 
             {/* Toggle Όλα / Τρέχοντα */}
             <button
               type="button"
               onClick={() => setOnlyCurrent(!onlyCurrent)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                 onlyCurrent
                   ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white border-indigo-500 shadow-sm shadow-indigo-500/20'
                   : isDark
@@ -715,7 +711,7 @@ export default function ReservationsPage() {
             <button
               type="button"
               onClick={() => setHideCancelled(!hideCancelled)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                 hideCancelled
                   ? 'bg-rose-500 text-white border-rose-600 shadow-sm'
                   : isDark
@@ -771,17 +767,25 @@ export default function ReservationsPage() {
         </div>
       </div>
 
-      {/* ── RESERVATION CARDS LIST (Sorted by start_date ASCENDING, WITHOUT Delete icon) ── */}
+      {/* ── RESERVATION CARDS LIST (Sorted by start_date ASCENDING) ── */}
       {loading ? (
         <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
           <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
           <p className="text-sm">Φόρτωση κρατήσεων...</p>
         </div>
       ) : filteredReservations.length === 0 ? (
-        <div className={`p-12 text-center rounded-2xl border text-slate-400 ${
+        <div className={`p-12 text-center rounded-2xl border text-slate-400 flex flex-col items-center gap-3 ${
           isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'
         }`}>
           <p className="text-sm">Δεν βρέθηκαν κρατήσεις για τα επιλεγμένα φίλτρα ({selectedYear}).</p>
+          <button
+            type="button"
+            onClick={handleOpenCreateReservation}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-white shadow-md flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Δημιουργήστε τη πρώτη κράτηση!</span>
+          </button>
         </div>
       ) : (
         <div className="space-y-3.5">
@@ -848,7 +852,7 @@ export default function ReservationsPage() {
                     )}
                   </div>
 
-                  {/* Month Badge & Action Icons: Eye View & Pencil Edit (Delete removed from list) */}
+                  {/* Month Badge & Action Icons: Eye View & Pencil Edit */}
                   <div className="flex items-center gap-1.5">
                     <span className="px-3 py-1 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-sm mr-1">
                       {monthBadge}
@@ -918,6 +922,17 @@ export default function ReservationsPage() {
           })}
         </div>
       )}
+
+      {/* ── MOBILE FLOATING "+ ΝΕΑ ΚΡΑΤΗΣΗ" BUTTON ── */}
+      <button
+        type="button"
+        onClick={handleOpenCreateReservation}
+        className="fixed bottom-6 right-6 z-40 p-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white shadow-2xl shadow-emerald-500/50 flex items-center gap-2 cursor-pointer transition-all hover:scale-110 active:scale-95 border-2 border-emerald-300"
+        title="Νέα Κράτηση"
+      >
+        <Plus className="w-6 h-6 stroke-[3]" />
+        <span className="font-black text-xs pr-1 hidden sm:inline">Νέα Κράτηση</span>
+      </button>
 
       {/* ── RESERVATION FORM MODAL (Create & Edit Mode with Customer Autocomplete & + New Customer) ── */}
       {resFormModal?.isOpen && (
@@ -1381,7 +1396,7 @@ export default function ReservationsPage() {
               <button
                 type="button"
                 onClick={() => setDeletingResId(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-bold transition-all cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-bold cursor-pointer"
               >
                 Ακύρωση
               </button>
