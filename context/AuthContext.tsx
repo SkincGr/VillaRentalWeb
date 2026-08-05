@@ -16,8 +16,8 @@ export interface UserSession {
 }
 
 interface AuthContextType {
-  user: UserSession | null;
-  role: UserRole | null;
+  user: UserSession;
+  role: UserRole;
   managerId: number | null;
   ownerId: number | null;
   selectedHouseId: number | 'ALL';
@@ -30,9 +30,7 @@ interface AuthContextType {
   logout: () => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Default fallback session for first-time visitors (Alex Manager)
+// Default fallback session for instant home loading (Alex Manager)
 const DEFAULT_MANAGER_SESSION: UserSession = {
   id: 'mgr_1',
   name: 'Alex (Διαχειριστής)',
@@ -41,15 +39,17 @@ const DEFAULT_MANAGER_SESSION: UserSession = {
   managerId: 1
 };
 
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserSession | null>(null);
+  const [user, setUser] = useState<UserSession>(DEFAULT_MANAGER_SESSION);
   const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
   const [assignedHouseIds, setAssignedHouseIds] = useState<number[]>([]);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [initialized, setInitialized] = useState(false);
   const router = useRouter();
 
-  // Load initial theme & session from localStorage (with default fallback)
+  // Load initial theme & session from localStorage
   useEffect(() => {
     const savedTheme = localStorage.getItem('vr_theme') as 'dark' | 'light' | null;
     if (savedTheme) {
@@ -64,7 +64,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (savedUser) {
       try {
-        sessionToUse = JSON.parse(savedUser) as UserSession;
+        const parsed = JSON.parse(savedUser) as UserSession;
+        if (parsed && parsed.role) {
+          sessionToUse = parsed;
+        }
       } catch (e) {
         console.error('Error parsing session:', e);
       }
@@ -114,10 +117,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function login(emailOrUsername: string, role: UserRole, targetId?: number): Promise<boolean> {
+  async function login(emailOrUsername: string, roleToSet: UserRole, targetId?: number): Promise<boolean> {
     let sessionUser: UserSession;
 
-    if (role === 'MANAGER') {
+    if (roleToSet === 'MANAGER') {
       const mgrId = targetId || 1;
       const { data } = await supabase
         .from('managers')
@@ -156,7 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   function logout() {
-    setUser(null);
+    setUser(DEFAULT_MANAGER_SESSION);
     setSelectedHouseId('ALL');
     setAssignedHouseIds([]);
     localStorage.removeItem('vr_session');
@@ -167,9 +170,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        role: user?.role || null,
-        managerId: user?.managerId || null,
-        ownerId: user?.ownerId || null,
+        role: user.role,
+        managerId: user.managerId || null,
+        ownerId: user.ownerId || null,
         selectedHouseId,
         setSelectedHouseId,
         assignedHouseIds,

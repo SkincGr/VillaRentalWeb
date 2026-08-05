@@ -3,7 +3,6 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { supabase, Reservation, House } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { 
@@ -47,8 +46,7 @@ function getMonthBadge(isoString: string | null | undefined): string {
 }
 
 export default function ReservationsPage() {
-  const router = useRouter();
-  const { user, role, ownerId, selectedHouseId: globalSelectedHouseId, assignedHouseIds, theme, initialized } = useAuth();
+  const { user, role, ownerId, selectedHouseId: globalSelectedHouseId, assignedHouseIds, theme } = useAuth();
   
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [houses, setHouses] = useState<House[]>([]);
@@ -62,18 +60,9 @@ export default function ReservationsPage() {
   // Selected reservation for Eye modal
   const [selectedRes, setSelectedRes] = useState<Reservation | null>(null);
 
-  // Unauthenticated Guard: Redirect to /login if user is not logged in
   useEffect(() => {
-    if (initialized && !user) {
-      router.replace('/login');
-    }
-  }, [initialized, user, router]);
-
-  useEffect(() => {
-    if (user) {
-      fetchData();
-    }
-  }, [user, role, ownerId, assignedHouseIds]);
+    fetchData();
+  }, [role, ownerId, assignedHouseIds]);
 
   async function fetchData() {
     setLoading(true);
@@ -127,16 +116,6 @@ export default function ReservationsPage() {
       setSelectedYear(availableYears[0]);
     }
   }, [reservations]);
-
-  // Render redirect loader if not authenticated
-  if (!initialized || !user) {
-    return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3 text-center">
-        <div className="w-9 h-9 border-3 border-sky-400 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-sm font-semibold text-slate-400">Μετάβαση στη σελίδα σύνδεσης...</p>
-      </div>
-    );
-  }
 
   // Role & Filter Logic
   const filteredReservations = reservations.filter((res) => {
