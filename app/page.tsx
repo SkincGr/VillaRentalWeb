@@ -597,7 +597,6 @@ export default function ReservationsPage() {
             const startDisplay = formatDateDisplay(res.start_date);
             const endDisplay = formatDateDisplay(res.end_date);
             const monthBadge = getMonthBadge(res.start_date);
-            const expired = isReservationExpired(res.end_date);
             const nationalityName = res.customers?.nationality?.nationality || '';
             
             // Duration calculation
@@ -644,25 +643,20 @@ export default function ReservationsPage() {
                       <span>
                         {res.customers?.name || 'Unknown Customer'}
                         {nationalityName && (
-                          <span className="ml-1.5 text-xs font-semibold text-sky-400">
+                          <span className="ml-1.5 text-xs font-semibold text-sky-400 font-normal">
                             ({nationalityName})
                           </span>
                         )}
                       </span>
                     </h3>
 
-                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                      {res.canceled && (
+                    {res.canceled && (
+                      <div className="mt-1">
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-500 border border-rose-500/30">
                           🚫 ΑΚΥΡΩΘΗΚΕ
                         </span>
-                      )}
-                      {expired && !res.canceled && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
-                          Έληξε
-                        </span>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Month Badge & Action Icons: Eye, Pencil Edit, Trash Delete */}
@@ -1213,7 +1207,7 @@ export default function ReservationsPage() {
                     <p className="text-xs text-slate-400 font-semibold uppercase">Πελάτης</p>
                     <p className="font-bold text-base mt-0.5">
                       {selectedRes.customers?.name || 'N/A'}
-                      {natName && <span className="ml-1.5 text-xs font-semibold text-sky-400">({natName})</span>}
+                      {natName && <span className="ml-1.5 text-xs font-semibold text-sky-400 font-normal">({natName})</span>}
                     </p>
                     <p className="text-xs text-slate-400 mt-1">{selectedRes.customers?.email || 'Χωρίς Email'}</p>
                     <p className="text-xs text-slate-400">{selectedRes.customers?.phone || 'Χωρίς Τηλέφωνο'}</p>
