@@ -88,6 +88,24 @@ function isReservationExpired(endDateIso: string | null | undefined): boolean {
   return endStr < todayStr;
 }
 
+// Check if a reservation starts on the exact same day that another reservation ends (same-day turnover)
+function hasSameDayTurnover(currentRes: Reservation, allReservations: Reservation[]): boolean {
+  if (currentRes.canceled || !currentRes.start_date || !currentRes.end_date) return false;
+  
+  const curStart = currentRes.start_date.split('T')[0];
+  const curEnd = currentRes.end_date.split('T')[0];
+
+  return allReservations.some(other => {
+    if (other.reser_id === currentRes.reser_id || other.canceled) return false;
+    if (other.f_house_aid !== currentRes.f_house_aid) return false;
+
+    const otherStart = other.start_date ? other.start_date.split('T')[0] : '';
+    const otherEnd = other.end_date ? other.end_date.split('T')[0] : '';
+
+    return curStart === otherEnd || curEnd === otherStart;
+  });
+}
+
 function calculateFinancials(feeNum: number, platCommRate: number, managerCommRate: number) {
   const fee = Number(feeNum || 0);
   const platComm = fee * Number(platCommRate || 0);
@@ -794,6 +812,7 @@ export default function ReservationsPage() {
             const endDisplay = formatDateDisplay(res.end_date);
             const monthBadge = getMonthBadge(res.start_date);
             const nationalityName = res.customers?.nationality?.nationality || '';
+            const isTurnover = hasSameDayTurnover(res, reservations);
             
             let diffDays = 0;
             if (res.start_date && res.end_date) {
@@ -886,14 +905,23 @@ export default function ReservationsPage() {
                   </div>
                 </div>
 
-                {/* Dates & Duration Row */}
-                <div className="mt-2 text-xs font-semibold text-slate-400 italic">
+                {/* Dates & Duration Row (RED & BOLD if same-day turnover with previous/next reservation) */}
+                <div className={`mt-2 text-xs italic flex flex-wrap items-center gap-2 ${
+                  isTurnover 
+                    ? 'text-rose-500 font-black not-italic bg-rose-500/10 p-1.5 rounded-xl border border-rose-500/30' 
+                    : 'text-slate-400 font-semibold'
+                }`}>
                   <span>{startDisplay} - {endDisplay}</span>
-                  {diffDays > 0 && <span className="ml-1 text-slate-500">({diffDays} days)</span>}
+                  {diffDays > 0 && <span className={isTurnover ? 'text-rose-400 font-bold' : 'text-slate-500'}>({diffDays} days)</span>}
+                  {isTurnover && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-500 text-white shadow-sm">
+                      ⚠️ Άμεση Αλλαγή
+                    </span>
+                  )}
                 </div>
 
                 {/* Fee / Manager Commission Line */}
-                <div className="mt-1 text-xs font-medium text-slate-400 flex items-center gap-2">
+                <div className="mt-1.5 text-xs font-medium text-slate-400 flex items-center gap-2">
                   <span>Fee: <strong className={isDark ? 'text-slate-200' : 'text-slate-800'}>€{fee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</strong></span>
                   <span>/</span>
                   <span>Manager: <strong className="text-indigo-400">€{managerCommission.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</strong></span>
@@ -934,7 +962,7 @@ export default function ReservationsPage() {
         <span className="font-black text-xs pr-1 hidden sm:inline">Νέα Κράτηση</span>
       </button>
 
-      {/* ── RESERVATION FORM MODAL (Create & Edit Mode with Customer Autocomplete & + New Customer) ── */}
+      {/* ── RESERVATION FORM MODAL ── */}
       {resFormModal?.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
           <div className={`w-full max-w-lg rounded-2xl border p-6 space-y-4 shadow-2xl relative transition-colors max-h-[90vh] overflow-y-auto ${
@@ -1263,7 +1291,6 @@ export default function ReservationsPage() {
                 />
               </div>
 
-              {/* Nationality Combo Box + "+ New Nationality" Button */}
               <div>
                 <label className="block font-semibold mb-1 text-slate-400">Εθνικότητα</label>
                 <div className="flex items-center gap-2">
@@ -1415,13 +1442,12 @@ export default function ReservationsPage() {
         </div>
       )}
 
-      {/* ── FINANCIAL SUMMARY MODAL (Calculates on ALL records for selected year & house) ── */}
+      {/* ── FINANCIAL SUMMARY MODAL ── */}
       {showFinancialModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
           <div className={`w-full max-w-lg rounded-2xl border p-6 space-y-5 shadow-2xl relative transition-colors max-h-[90vh] overflow-y-auto ${
             isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
           }`}>
-            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-md">
@@ -1441,9 +1467,7 @@ export default function ReservationsPage() {
               </button>
             </div>
 
-            {/* Modal Financial Table / Card Content */}
             <div className="space-y-4 text-xs">
-              {/* SECTION A: Overview Metrics */}
               <div className={`p-4 rounded-xl border space-y-2.5 ${isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 flex items-center gap-1.5 font-semibold">
@@ -1482,7 +1506,6 @@ export default function ReservationsPage() {
                 </div>
               </div>
 
-              {/* SECTION B: Commissions Breakdown */}
               <div className={`p-4 rounded-xl border space-y-2.5 ${isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                 <p className="font-bold text-xs uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
                   <PieChart className="w-4 h-4 text-indigo-400" />
@@ -1503,7 +1526,6 @@ export default function ReservationsPage() {
                   </span>
                 </div>
 
-                {/* Perivalon calculated ONLY on Taxable Days */}
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 flex items-center gap-1">
                     <Trees className="w-3.5 h-3.5 text-emerald-400" />
@@ -1522,7 +1544,6 @@ export default function ReservationsPage() {
                 </div>
               </div>
 
-              {/* SECTION C: Income & Progressive Tax */}
               <div className={`p-4 rounded-xl border space-y-2.5 ${isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                 <p className="font-bold text-xs uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
                   <TrendingUp className="w-4 h-4 text-emerald-400" />
@@ -1551,7 +1572,6 @@ export default function ReservationsPage() {
                 </div>
               </div>
 
-              {/* SECTION D: Cancellation Loss */}
               <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 space-y-1.5">
                 <div className="flex items-center justify-between font-bold text-sm">
                   <span className="flex items-center gap-1.5 text-rose-400">
@@ -1568,7 +1588,6 @@ export default function ReservationsPage() {
               </div>
             </div>
 
-            {/* Modal Footer */}
             <div className="pt-3 border-t border-slate-800 flex justify-end">
               <button
                 type="button"
@@ -1590,13 +1609,13 @@ export default function ReservationsPage() {
           selectedRes.platforms?.commission || 0
         );
         const natName = selectedRes.customers?.nationality?.nationality || '';
+        const isTurnover = hasSameDayTurnover(selectedRes, reservations);
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
             <div className={`w-full max-w-lg rounded-2xl border p-6 space-y-5 shadow-2xl relative transition-colors ${
               isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}>
-              {/* Modal Header */}
               <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
                 <div>
                   <h3 className="text-lg font-extrabold flex items-center gap-2">
@@ -1618,9 +1637,7 @@ export default function ReservationsPage() {
                 </button>
               </div>
 
-              {/* Modal Body */}
               <div className="space-y-3.5 text-sm">
-                {/* Customer Box with Nationality in parentheses */}
                 <div className={`p-3.5 rounded-xl border flex items-start gap-3 ${
                   isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
                 }`}>
@@ -1636,14 +1653,22 @@ export default function ReservationsPage() {
                   </div>
                 </div>
 
-                {/* Dates & Visitors */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                    <div className="flex items-center gap-1.5 text-slate-400 text-xs font-semibold mb-1">
-                      <CalendarIcon className="w-4 h-4 text-indigo-400" />
-                      <span>Ημερομηνίες</span>
+                  <div className={`p-3 rounded-xl border ${
+                    isTurnover 
+                      ? 'bg-rose-500/10 border-rose-500/40 text-rose-300' 
+                      : isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+                  }`}>
+                    <div className="flex items-center justify-between text-xs font-semibold mb-1">
+                      <div className="flex items-center gap-1.5 text-slate-400">
+                        <CalendarIcon className="w-4 h-4 text-indigo-400" />
+                        <span>Ημερομηνίες</span>
+                      </div>
+                      {isTurnover && <span className="text-[10px] font-black text-rose-500">⚠️ Άμεση Αλλαγή</span>}
                     </div>
-                    <p className="text-xs font-bold">{formatDateDisplay(selectedRes.start_date)} ➔ {formatDateDisplay(selectedRes.end_date)}</p>
+                    <p className={`text-xs ${isTurnover ? 'font-black text-rose-400' : 'font-bold'}`}>
+                      {formatDateDisplay(selectedRes.start_date)} ➔ {formatDateDisplay(selectedRes.end_date)}
+                    </p>
                   </div>
 
                   <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
@@ -1655,7 +1680,6 @@ export default function ReservationsPage() {
                   </div>
                 </div>
 
-                {/* Financial Breakdown */}
                 <div className={`p-3.5 rounded-xl border space-y-2 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-400">Πλατφόρμα:</span>
@@ -1679,7 +1703,6 @@ export default function ReservationsPage() {
                   </div>
                 </div>
 
-                {/* Notes */}
                 {(selectedRes.notes || selectedRes.comments) && (
                   <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                     <div className="flex items-center gap-1.5 text-slate-400 text-xs font-semibold mb-1">
@@ -1691,10 +1714,8 @@ export default function ReservationsPage() {
                 )}
               </div>
 
-              {/* Modal Footer with Actions: Edit, Delete, Toggle Cancel */}
               <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
-                  {/* Edit Button */}
                   <button
                     type="button"
                     onClick={() => handleOpenEditReservation(selectedRes)}
@@ -1704,7 +1725,6 @@ export default function ReservationsPage() {
                     <span>Επεξεργασία</span>
                   </button>
 
-                  {/* Toggle Cancel Button */}
                   <button
                     type="button"
                     disabled={actionLoading}
