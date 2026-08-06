@@ -908,7 +908,7 @@ export default function ReservationsPage() {
                   {diffDays > 0 && <span className="text-slate-500">({diffDays} days)</span>}
                   {isIncomingTurnover && (
                     <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-500 text-white shadow-sm not-italic animate-pulse">
-                      ⚠️ Άμεση Αλλαγή
+                      ⚠️ (CheckOut/CheckIn)
                     </span>
                   )}
                 </div>
@@ -1657,7 +1657,7 @@ export default function ReservationsPage() {
                         <CalendarIcon className="w-4 h-4 text-indigo-400" />
                         <span>Ημερομηνίες</span>
                       </div>
-                      {isIncomingTurnover && <span className="text-[10px] font-black text-rose-500">⚠️ Άμεση Αλλαγή</span>}
+                      {isIncomingTurnover && <span className="text-[10px] font-black text-rose-500">⚠️ (CheckOut/CheckIn)</span>}
                     </div>
                     <p className="text-xs font-semibold text-slate-300">
                       {formatDateDisplay(selectedRes.start_date)} ➔ {formatDateDisplay(selectedRes.end_date)}

@@ -444,7 +444,7 @@ export default function YearCalendarPage() {
 
           <div className="flex items-center gap-1.5">
             <span className="w-3.5 h-3.5 rounded bg-amber-300 border-2 border-rose-500 text-rose-600 font-black text-[10px] flex items-center justify-center">15</span>
-            <span className="text-rose-500 font-bold">Ημέρα Άμεσης Αλλαγής (Check-Out / Check-In)</span>
+            <span className="text-rose-500 font-bold">Ημέρα (CheckOut/CheckIn)</span>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -556,7 +556,7 @@ export default function YearCalendarPage() {
                         }`}
                         title={
                           isTurnover
-                            ? `⚠️ Ημέρα Άμεσης Αλλαγής (Check-Out / Check-In)`
+                            ? `⚠️ Ημέρα (CheckOut/CheckIn)`
                             : res 
                               ? `${res.customers?.name || 'Booked'} (${res.platforms?.name || ''})` 
                               : isClosed 
