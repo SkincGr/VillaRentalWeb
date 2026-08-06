@@ -42,8 +42,8 @@ const EXCLUSIVE_SITE_PASSCODE = 'lesvos#54#Mirina#81';
 // EXCLUSIVE REGISTERED ACCOUNTS FOR USER LOGIN (Layer 2)
 const REGISTERED_ACCOUNTS = [
   {
-    email: 'skinkon@gmail.com',
-    passwords: ['Skindilias2026!'],
+    email: 'winston@gmail.com',
+    passwords: ['winston2026!'],
     role: 'OWNER' as UserRole,
     ownerId: 1,
     name: 'Κωνσταντίνος Σκινδήλιας (Ιδιοκτήτης)'
