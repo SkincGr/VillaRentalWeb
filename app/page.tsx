@@ -88,21 +88,18 @@ function isReservationExpired(endDateIso: string | null | undefined): boolean {
   return endStr < todayStr;
 }
 
-// Check if a reservation starts on the exact same day that another reservation ends (same-day turnover)
-function hasSameDayTurnover(currentRes: Reservation, allReservations: Reservation[]): boolean {
-  if (currentRes.canceled || !currentRes.start_date || !currentRes.end_date) return false;
+// Check if ONLY the incoming/following reservation starts on the exact day a previous reservation ends
+function hasIncomingTurnover(currentRes: Reservation, allReservations: Reservation[]): boolean {
+  if (currentRes.canceled || !currentRes.start_date) return false;
   
   const curStart = currentRes.start_date.split('T')[0];
-  const curEnd = currentRes.end_date.split('T')[0];
 
   return allReservations.some(other => {
     if (other.reser_id === currentRes.reser_id || other.canceled) return false;
     if (other.f_house_aid !== currentRes.f_house_aid) return false;
 
-    const otherStart = other.start_date ? other.start_date.split('T')[0] : '';
     const otherEnd = other.end_date ? other.end_date.split('T')[0] : '';
-
-    return curStart === otherEnd || curEnd === otherStart;
+    return curStart === otherEnd;
   });
 }
 
@@ -812,7 +809,7 @@ export default function ReservationsPage() {
             const endDisplay = formatDateDisplay(res.end_date);
             const monthBadge = getMonthBadge(res.start_date);
             const nationalityName = res.customers?.nationality?.nationality || '';
-            const isTurnover = hasSameDayTurnover(res, reservations);
+            const isIncomingTurnover = hasIncomingTurnover(res, reservations);
             
             let diffDays = 0;
             if (res.start_date && res.end_date) {
@@ -905,16 +902,12 @@ export default function ReservationsPage() {
                   </div>
                 </div>
 
-                {/* Dates & Duration Row (RED & BOLD if same-day turnover with previous/next reservation) */}
-                <div className={`mt-2 text-xs italic flex flex-wrap items-center gap-2 ${
-                  isTurnover 
-                    ? 'text-rose-500 font-black not-italic bg-rose-500/10 p-1.5 rounded-xl border border-rose-500/30' 
-                    : 'text-slate-400 font-semibold'
-                }`}>
+                {/* Dates & Duration Row (Clean date text + Warning Badge ONLY on incoming reservation) */}
+                <div className="mt-2 text-xs italic text-slate-400 font-semibold flex flex-wrap items-center gap-2">
                   <span>{startDisplay} - {endDisplay}</span>
-                  {diffDays > 0 && <span className={isTurnover ? 'text-rose-400 font-bold' : 'text-slate-500'}>({diffDays} days)</span>}
-                  {isTurnover && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-500 text-white shadow-sm">
+                  {diffDays > 0 && <span className="text-slate-500">({diffDays} days)</span>}
+                  {isIncomingTurnover && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-500 text-white shadow-sm not-italic animate-pulse">
                       ⚠️ Άμεση Αλλαγή
                     </span>
                   )}
@@ -1609,7 +1602,7 @@ export default function ReservationsPage() {
           selectedRes.platforms?.commission || 0
         );
         const natName = selectedRes.customers?.nationality?.nationality || '';
-        const isTurnover = hasSameDayTurnover(selectedRes, reservations);
+        const isIncomingTurnover = hasIncomingTurnover(selectedRes, reservations);
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
@@ -1655,7 +1648,7 @@ export default function ReservationsPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className={`p-3 rounded-xl border ${
-                    isTurnover 
+                    isIncomingTurnover 
                       ? 'bg-rose-500/10 border-rose-500/40 text-rose-300' 
                       : isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
                   }`}>
@@ -1664,9 +1657,9 @@ export default function ReservationsPage() {
                         <CalendarIcon className="w-4 h-4 text-indigo-400" />
                         <span>Ημερομηνίες</span>
                       </div>
-                      {isTurnover && <span className="text-[10px] font-black text-rose-500">⚠️ Άμεση Αλλαγή</span>}
+                      {isIncomingTurnover && <span className="text-[10px] font-black text-rose-500">⚠️ Άμεση Αλλαγή</span>}
                     </div>
-                    <p className={`text-xs ${isTurnover ? 'font-black text-rose-400' : 'font-bold'}`}>
+                    <p className="text-xs font-semibold text-slate-300">
                       {formatDateDisplay(selectedRes.start_date)} ➔ {formatDateDisplay(selectedRes.end_date)}
                     </p>
                   </div>

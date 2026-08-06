@@ -13,10 +13,7 @@ import {
   CircleDollarSign,
   Calendar as CalendarIcon,
   X,
-  User,
-  Building,
-  Tag,
-  Ban
+  User
 } from 'lucide-react';
 
 export interface TaxKlimakaItem {
@@ -187,7 +184,7 @@ export default function YearCalendarPage() {
         }
         setHouses(filteredHouses);
         
-        // Default to first specific house (no "ALL" option)
+        // Default to first specific house
         if (filteredHouses.length > 0) {
           setSelectedHouseId(filteredHouses[0].house_aid);
         }
@@ -225,14 +222,13 @@ export default function YearCalendarPage() {
 
   // Active selected house metadata
   const currentHouse = houses.find(h => h.house_aid === selectedHouseId) || houses[0];
-  const startPeriodStr = currentHouse?.start_period_date || '05-15'; // Default 15 May
-  const endPeriodStr = currentHouse?.end_period_date || '10-15';     // Default 15 October
+  const startPeriodStr = currentHouse?.start_period_date || '05-15';
+  const endPeriodStr = currentHouse?.end_period_date || '10-15';
 
   // 1. Filter active non-canceled reservations for selected year & SPECIFIC house
   const activeYearReservations = reservations.filter(res => {
     if (res.canceled) return false;
 
-    // Must match the single selected house
     if (res.f_house_aid !== selectedHouseId) {
       return false;
     }
@@ -258,17 +254,16 @@ export default function YearCalendarPage() {
     }
   });
 
-  // Calculate Net Income AFTER Tax using progressive tax brackets
   const periodFinancials = computePeriodFinancials(activeYearReservations, taxItems);
   const netIncomeAfterTax = periodFinancials.netIncomeAfterTax;
 
-  // Month names (English matching screenshot: January, February, March...)
+  // Month names
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
-  // Weekday headers matching screenshot: S M T W T F S
+  // Weekday headers
   const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
   // Helper to check if a specific date is booked by an active reservation
@@ -284,7 +279,19 @@ export default function YearCalendarPage() {
     });
   }
 
-  // Helper to check if a date is OUTSIDE the house operating period (e.g., outside 15 May - 15 Oct)
+  // Helper to check if a day is a TURNOVER date (where one reservation ends and another starts)
+  function isTurnoverDay(yearNum: number, monthIdx: number, dayNum: number): boolean {
+    const mStr = String(monthIdx + 1).padStart(2, '0');
+    const dStr = String(dayNum).padStart(2, '0');
+    const targetIsoStr = `${yearNum}-${mStr}-${dStr}`;
+
+    const hasCheckout = activeYearReservations.some(r => r.end_date && r.end_date.split('T')[0] === targetIsoStr);
+    const hasCheckin = activeYearReservations.some(r => r.start_date && r.start_date.split('T')[0] === targetIsoStr);
+
+    return hasCheckout && hasCheckin;
+  }
+
+  // Helper to check if a date is OUTSIDE the house operating period
   function isDateOutsideOperatingPeriod(monthIdx: number, dayNum: number): boolean {
     const mStr = String(monthIdx + 1).padStart(2, '0');
     const dStr = String(dayNum).padStart(2, '0');
@@ -312,7 +319,7 @@ export default function YearCalendarPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
-      {/* ── PURPLE HEADER BAR (Year Selector centered in the middle of Year Calendar line) ── */}
+      {/* ── PURPLE HEADER BAR ── */}
       <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white rounded-2xl shadow-xl p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           {/* Left: Title & Operating Period Subtitle */}
@@ -326,7 +333,7 @@ export default function YearCalendarPage() {
             </div>
           </div>
 
-          {/* Center: Year Selector Navigation (< 2026 >) in the same line */}
+          {/* Center: Year Selector Navigation (< 2026 >) */}
           <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-xl border border-white/20 shadow-inner mx-auto sm:mx-0">
             <button
               type="button"
@@ -351,7 +358,7 @@ export default function YearCalendarPage() {
             </button>
           </div>
 
-          {/* Right: Single House Selector Dropdown (No "Όλα τα Σπίτια") */}
+          {/* Right: Single House Selector Dropdown */}
           <div className="flex items-center gap-2">
             <select
               value={selectedHouseId}
@@ -368,7 +375,7 @@ export default function YearCalendarPage() {
         </div>
       </div>
 
-      {/* ── TOP 3 SUMMARY CARDS (Income displays Net Income After Tax) ── */}
+      {/* ── TOP 3 SUMMARY CARDS ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Card 1: Total Reservations */}
         <div className={`p-4 rounded-2xl border shadow-sm flex items-center gap-4 transition-all ${
@@ -406,7 +413,7 @@ export default function YearCalendarPage() {
           </div>
         </div>
 
-        {/* Card 3: Income Net Profit (Displays Net Income After Tax) */}
+        {/* Card 3: Income Net Profit */}
         <div className={`p-4 rounded-2xl border shadow-sm flex items-center gap-4 transition-all ${
           isDark 
             ? 'bg-amber-950/30 border-amber-800/50 text-amber-200' 
@@ -425,7 +432,7 @@ export default function YearCalendarPage() {
         </div>
       </div>
 
-      {/* ── LEGEND BAR FOR OPERATING PERIOD & BOOKINGS ── */}
+      {/* ── LEGEND BAR ── */}
       <div className={`p-3 rounded-xl border text-xs font-semibold flex flex-wrap items-center justify-between gap-3 ${
         isDark ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
       }`}>
@@ -433,6 +440,11 @@ export default function YearCalendarPage() {
           <div className="flex items-center gap-1.5">
             <span className="w-3.5 h-3.5 rounded bg-amber-300 border border-amber-400"></span>
             <span>Κρατημένο</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="w-3.5 h-3.5 rounded bg-amber-300 border-2 border-rose-500 text-rose-600 font-black text-[10px] flex items-center justify-center">15</span>
+            <span className="text-rose-500 font-bold">Ημέρα Άμεσης Αλλαγής (Check-Out / Check-In)</span>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -459,8 +471,7 @@ export default function YearCalendarPage() {
             const bookedCount = getBookedDaysCountForMonth(selectedYear, monthIdx);
             const isCurrentMonth = selectedYear === currentYearNum && monthIdx === currentMonthIdx;
             
-            // Calculate calendar grid for this month
-            const firstDayIndex = new Date(selectedYear, monthIdx, 1).getDay(); // 0 = Sunday
+            const firstDayIndex = new Date(selectedYear, monthIdx, 1).getDay();
             const totalDaysInMonth = new Date(selectedYear, monthIdx + 1, 0).getDate();
 
             return (
@@ -524,6 +535,7 @@ export default function YearCalendarPage() {
                   {Array.from({ length: totalDaysInMonth }).map((_, i) => {
                     const dayNum = i + 1;
                     const res = getBookedReservationForDate(selectedYear, monthIdx, dayNum);
+                    const isTurnover = isTurnoverDay(selectedYear, monthIdx, dayNum);
                     const isBooked = Boolean(res);
                     const isClosed = !isBooked && isDateOutsideOperatingPeriod(monthIdx, dayNum);
 
@@ -531,19 +543,25 @@ export default function YearCalendarPage() {
                       <div
                         key={`day-${monthIdx}-${dayNum}`}
                         onClick={() => res && setActiveResPopup(res)}
-                        className={`h-7 rounded-lg text-xs font-bold flex items-center justify-center transition-all ${
+                        className={`h-7 rounded-lg text-xs font-extrabold flex items-center justify-center transition-all ${
                           isBooked
-                            ? 'bg-amber-300 text-slate-950 font-black cursor-pointer hover:scale-110 shadow-sm shadow-amber-400/40'
-                            : isClosed
-                              ? 'line-through opacity-35 text-slate-500 bg-slate-100 dark:bg-slate-950/40 cursor-not-allowed'
-                              : isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100'
+                            ? isTurnover
+                              ? 'bg-amber-300 text-rose-600 font-black cursor-pointer hover:scale-110 shadow-md ring-2 ring-rose-500'
+                              : 'bg-amber-300 text-slate-950 font-black cursor-pointer hover:scale-110 shadow-sm shadow-amber-400/40'
+                            : isTurnover
+                              ? 'text-rose-600 font-black ring-2 ring-rose-500/60 bg-rose-500/10 cursor-pointer'
+                              : isClosed
+                                ? 'line-through opacity-35 text-slate-500 bg-slate-100 dark:bg-slate-950/40 cursor-not-allowed'
+                                : isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100'
                         }`}
                         title={
-                          res 
-                            ? `${res.customers?.name || 'Booked'} (${res.platforms?.name || ''})` 
-                            : isClosed 
-                              ? 'Εκτός Περιόδου Ενοικίασης (15/05 - 15/10)' 
-                              : 'Διαθέσιμο'
+                          isTurnover
+                            ? `⚠️ Ημέρα Άμεσης Αλλαγής (Check-Out / Check-In)`
+                            : res 
+                              ? `${res.customers?.name || 'Booked'} (${res.platforms?.name || ''})` 
+                              : isClosed 
+                                ? 'Εκτός Περιόδου Ενοικίασης (15/05 - 15/10)' 
+                                : 'Διαθέσιμο'
                         }
                       >
                         {dayNum}
