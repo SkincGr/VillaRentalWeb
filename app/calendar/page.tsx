@@ -443,7 +443,7 @@ export default function YearCalendarPage() {
           </div>
 
           <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded bg-amber-300 border-2 border-rose-500 text-rose-600 font-black text-[10px] flex items-center justify-center">15</span>
+            <span className="w-3.5 h-3.5 rounded bg-rose-600 text-white font-black text-[10px] flex items-center justify-center">15</span>
             <span className="text-rose-500 font-bold">Ημέρα (CheckOut/CheckIn)</span>
           </div>
 
@@ -544,12 +544,10 @@ export default function YearCalendarPage() {
                         key={`day-${monthIdx}-${dayNum}`}
                         onClick={() => res && setActiveResPopup(res)}
                         className={`h-7 rounded-lg text-xs font-extrabold flex items-center justify-center transition-all ${
-                          isBooked
-                            ? isTurnover
-                              ? 'bg-amber-300 text-rose-600 font-black cursor-pointer hover:scale-110 shadow-md ring-2 ring-rose-500'
-                              : 'bg-amber-300 text-slate-950 font-black cursor-pointer hover:scale-110 shadow-sm shadow-amber-400/40'
-                            : isTurnover
-                              ? 'text-rose-600 font-black ring-2 ring-rose-500/60 bg-rose-500/10 cursor-pointer'
+                          isTurnover
+                            ? 'bg-rose-600 text-white font-black cursor-pointer hover:scale-110 shadow-md shadow-rose-600/40 ring-2 ring-rose-400'
+                            : isBooked
+                              ? 'bg-amber-300 text-slate-950 font-black cursor-pointer hover:scale-110 shadow-sm shadow-amber-400/40'
                               : isClosed
                                 ? 'line-through opacity-35 text-slate-500 bg-slate-100 dark:bg-slate-950/40 cursor-not-allowed'
                                 : isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100'
