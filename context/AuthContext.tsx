@@ -227,6 +227,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('vr_session', JSON.stringify(sessionUser));
       document.cookie = "vr_session=true; path=/; max-age=86400; SameSite=Lax";
+      // Auto-unlock site after successful login
+      sessionStorage.setItem('vr_site_unlocked', 'true');
+      document.cookie = "vr_site_unlocked=true; path=/; max-age=86400; SameSite=Lax";
     }
     await loadAssignedHouses(sessionUser);
     return { success: true };
