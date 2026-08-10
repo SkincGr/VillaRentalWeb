@@ -24,7 +24,9 @@ export async function POST(request: Request) {
       comments,
       f_custom_id,
       customer_name,
-      f_nationallity_aid
+      f_nationallity_aid,
+      advanced_payment,
+      payed
     } = body;
 
     if (!reser_id) {
@@ -57,7 +59,9 @@ export async function POST(request: Request) {
         f_platform_id: Number(f_platform_id),
         f_house_aid: Number(f_house_aid || 1),
         notes: notes || null,
-        comments: comments || null
+        comments: comments || null,
+        advanced_payment: advanced_payment !== undefined ? Number(advanced_payment) : null,
+        payed: payed !== undefined ? Boolean(payed) : undefined
       })
       .eq('reser_id', reser_id)
       .select();

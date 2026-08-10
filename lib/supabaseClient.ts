@@ -57,6 +57,7 @@ export interface Reservation {
   notes?: string;
   comments?: string;
   canceled: boolean;
+  payed?: boolean;
   reservation_day?: string;
   advanced_payment?: number;
   customers?: Customer;

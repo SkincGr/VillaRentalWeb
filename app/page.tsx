@@ -523,6 +523,33 @@ export default function ReservationsPage() {
     }
   };
 
+  // Toggle reservation payed status
+  const handleTogglePayed = async (res: Reservation, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newPayed = !res.payed;
+
+    // Optimistic update
+    setReservations(prev => prev.map(r => r.reser_id === res.reser_id ? { ...r, payed: newPayed } : r));
+
+    try {
+      const response = await fetch('/api/reservations/payed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reser_id: res.reser_id, payed: newPayed })
+      });
+      const json = await response.json();
+      if (!json.success) {
+        // Rollback on failure
+        setReservations(prev => prev.map(r => r.reser_id === res.reser_id ? { ...r, payed: !newPayed } : r));
+        alert('Σφάλμα ενημέρωσης πληρωμής: ' + (json.error || ''));
+      }
+    } catch (err) {
+      // Rollback
+      setReservations(prev => prev.map(r => r.reser_id === res.reser_id ? { ...r, payed: !newPayed } : r));
+      console.error('Payed toggle error:', err);
+    }
+  };
+
   // Toggle reservation cancellation status
   const handleToggleCancel = async (res: Reservation) => {
     setActionLoading(true);
@@ -620,7 +647,18 @@ export default function ReservationsPage() {
   const listCancelledCount = filteredReservations.filter(r => r.canceled).length;
 
   const visibleNetIncome = filteredReservations
-    .filter(r => !r.canceled)
+    .filter(r => !r.canceled && !r.payed)
+    .reduce((sum, res) => {
+      const { netFee } = calculateFinancials(
+        res.fee,
+        res.platforms?.plat_commission || 0,
+        res.platforms?.commission || 0
+      );
+      return sum + netFee;
+    }, 0);
+
+  const payedNetIncome = filteredReservations
+    .filter(r => !r.canceled && r.payed)
     .reduce((sum, res) => {
       const { netFee } = calculateFinancials(
         res.fee,
@@ -757,6 +795,11 @@ export default function ReservationsPage() {
               <span className="font-extrabold text-emerald-400">
                 €{visibleNetIncome.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
               </span>
+              {payedNetIncome > 0 && (
+                <span className="ml-1.5 text-amber-400 font-semibold">
+                  (+€{payedNetIncome.toLocaleString('el-GR', { minimumFractionDigits: 2 })} πληρωμένα)
+                </span>
+              )}
             </div>
 
             <span>|</span>
@@ -918,9 +961,12 @@ export default function ReservationsPage() {
                   <span>Fee: <strong className={isDark ? 'text-slate-200' : 'text-slate-800'}>€{fee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</strong></span>
                   <span>/</span>
                   <span>Manager: <strong className="text-indigo-400">€{managerCommission.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</strong></span>
+                  {(res.advanced_payment ?? 0) > 0 && (
+                    <span className="text-amber-400">/ Προκαταβολή: <strong>€{Number(res.advanced_payment).toLocaleString('el-GR', { minimumFractionDigits: 2 })}</strong></span>
+                  )}
                 </div>
 
-                {/* Details Subtitle Row & Green Net Price Tag */}
+                {/* Details Subtitle Row, Green Net Price Tag & Payed Checkbox */}
                 <div className="mt-2.5 pt-2.5 border-t border-slate-800/40 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="text-slate-400 space-x-1.5">
                     <span className="font-semibold text-sky-400">{res.platforms?.name || 'N/A'}</span>
@@ -929,13 +975,47 @@ export default function ReservationsPage() {
                     {res.kids > 0 && <span>/ {res.kids} kids</span>}
                   </div>
 
-                  {/* Green Price Tag = Net Fee */}
-                  <div className={`text-base font-extrabold ${
-                    res.canceled 
-                      ? 'text-slate-500 line-through' 
-                      : 'text-emerald-500'
-                  }`}>
-                    €{netFee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                  <div className="flex items-center gap-3">
+                    {/* Payed Checkbox */}
+                    {!res.canceled && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleTogglePayed(res, e)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all cursor-pointer ${
+                          res.payed
+                            ? 'bg-amber-500/20 border-amber-500/40 text-amber-400 hover:bg-amber-500/30'
+                            : isDark
+                              ? 'bg-slate-800/60 border-slate-700 text-slate-500 hover:text-amber-400 hover:border-amber-500/40'
+                              : 'bg-slate-100 border-slate-300 text-slate-400 hover:text-amber-500 hover:border-amber-400'
+                        }`}
+                        title={res.payed ? 'Πληρώθηκε — Κλικ για αναίρεση' : 'Σημείωση ως Πληρωμένο'}
+                      >
+                        <span className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 ${
+                          res.payed ? 'border-amber-400 bg-amber-400' : 'border-current'
+                        }`}>
+                          {res.payed && <span className="text-white text-[9px] font-black">✓</span>}
+                        </span>
+                        <span>Payed</span>
+                      </button>
+                    )}
+
+                    {/* Green Price Tag = Net Fee (minus advanced_payment if any) */}
+                    <div className={`text-base font-extrabold ${
+                      res.canceled
+                        ? 'text-slate-500 line-through'
+                        : res.payed
+                          ? 'text-amber-400 line-through opacity-60'
+                          : 'text-emerald-500'
+                    }`}>
+                      {(res.advanced_payment ?? 0) > 0 && !res.canceled ? (
+                        <span>
+                          €{(netFee - Number(res.advanced_payment)).toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                          <span className="ml-1 text-xs font-semibold text-amber-400/70">(-€{Number(res.advanced_payment).toLocaleString('el-GR', { minimumFractionDigits: 2 })} προκ.)</span>
+                        </span>
+                      ) : (
+                        `€${netFee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}`
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
