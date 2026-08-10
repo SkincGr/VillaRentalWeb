@@ -11,15 +11,17 @@ import {
   Receipt, 
   Building2, 
   Settings,
-  Sparkles
+  Sparkles,
+  CalendarRange
 } from 'lucide-react';
 
 const navItems = [
   { name: 'Κρατήσεις', href: '/', icon: CalendarCheck },
+  { name: 'Έξοδα', href: '/expenses', icon: Receipt },
+  { name: 'Ανά Έτος', href: '/yearly-summary', icon: CalendarRange },
   { name: 'Ημερολόγιο', href: '/calendar', icon: Calendar },
   { name: 'Master Data', href: '/master-data', icon: Users },
   { name: 'Αναλυτικά', href: '/analytics', icon: BarChart3 },
-  { name: 'Έξοδα & Φόροι', href: '/expenses', icon: Receipt },
 ];
 
 export default function Sidebar() {
