@@ -232,11 +232,11 @@ export default function ExpensesPage() {
   const labelCls = `block text-xs font-semibold mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5 pb-12">
+    <div className="h-full flex flex-col max-w-5xl mx-auto w-full overflow-hidden space-y-4">
 
-      {/* ── HEADER ── */}
-      <div className={`p-5 rounded-2xl border shadow-sm ${
-        isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200'
+      {/* ── FRAME 1: TOP FIXED FRAME (HEADER & FILTERS) ── */}
+      <div className={`p-5 rounded-2xl border-2 shadow-md shrink-0 transition-colors ${
+        isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
       }`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -331,7 +331,8 @@ export default function ExpensesPage() {
         </div>
       </div>
 
-      {/* ── CATEGORY BREAKDOWN ── */}
+      {/* ── FRAME 2: BOTTOM SCROLLABLE FRAME (EXPENSES LIST & DATA) ── */}
+      <div className="flex-1 overflow-y-auto pr-1 space-y-4 pb-20 min-h-0">
       {byCategory.length > 0 && (
         <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'}`}>
           <p className={`text-xs font-bold mb-3 flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -435,6 +436,7 @@ export default function ExpensesPage() {
           ))}
         </div>
       )}
+      </div>
 
       {/* ── FAB BUTTON ── */}
       <button

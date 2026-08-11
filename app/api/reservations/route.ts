@@ -31,6 +31,23 @@ export async function GET() {
       supabase.from('customers').select('*, nationality (*)').order('name', { ascending: true })
     ]);
 
+    let housePeriodsData: any[] = [];
+    let housePeriodsError: any = null;
+    try {
+      const housePeriodsRes = await supabase
+        .from('house_to_periods')
+        .select('f_house_aid,start_month,start_day,end_month,end_day,efective_startyear,efective_endyear')
+        .order('efective_startyear', { ascending: true });
+      housePeriodsData = housePeriodsRes.data || [];
+      housePeriodsError = housePeriodsRes.error;
+    } catch (err) {
+      housePeriodsError = err;
+    }
+
+    if (housePeriodsError) {
+      console.error('API House Periods Error:', housePeriodsError);
+    }
+
     if (reservationsRes.error) {
       console.error('API Reservations Error:', reservationsRes.error);
       return NextResponse.json({ error: reservationsRes.error.message }, { status: 500 });
@@ -43,6 +60,24 @@ export async function GET() {
       end_period_date: h.end_period_date || '10-15'
     }));
 
+    const housePeriods = (housePeriodsData || []).reduce((acc: Record<string, any[]>, row: any) => {
+      const houseId = row.f_house_aid;
+      if (!houseId) return acc;
+
+      const normalizedPeriod = {
+        yearFrom: row.efective_startyear,
+        yearTo: row.efective_endyear,
+        startMonth: row.start_month,
+        startDay: row.start_day,
+        endMonth: row.end_month,
+        endDay: row.end_day
+      };
+
+      acc[String(houseId)] = acc[String(houseId)] || [];
+      acc[String(houseId)].push(normalizedPeriod);
+      return acc;
+    }, {} as Record<string, any[]>);
+
     return NextResponse.json({
       houses: processedHouses,
       reservations: reservationsRes.data || [],
@@ -50,7 +85,8 @@ export async function GET() {
       taxKlimakaItems: taxItemsRes.data || [],
       platforms: platformsRes.data || [],
       nationalities: nationalityRes.data || [],
-      customers: customersRes.data || []
+      customers: customersRes.data || [],
+      housePeriods
     });
   } catch (err: any) {
     console.error('API Error:', err);

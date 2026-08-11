@@ -53,18 +53,19 @@ export default function AnalyticsPage() {
   })).sort((a, b) => b.gross - a.gross);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white tracking-wide flex items-center gap-2">
-          <BarChart3 className="w-6 h-6 text-indigo-400" />
-          <span>Αναλυτικά & Στατιστικά</span>
-        </h1>
-        <p className="text-sm text-slate-400">Οικονομική ανάλυση εσόδων, προμηθειών & πληρότητας</p>
-      </div>
+    <div className="h-full flex flex-col max-w-6xl mx-auto w-full overflow-hidden gap-4">
+      <div className="shrink-0 space-y-4">
+        {/* Header */}
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-wide flex items-center gap-2">
+            <BarChart3 className="w-6 h-6 text-indigo-400" />
+            <span>Αναλυτικά & Στατιστικά</span>
+          </h1>
+          <p className="text-sm text-slate-400">Οικονομική ανάλυση εσόδων, προμηθειών & πληρότητας</p>
+        </div>
 
-      {/* Financial Summary KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Financial Summary KPIs */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Gross Revenue */}
         <div className="glass-card p-5 rounded-2xl">
           <div className="flex items-center justify-between">
@@ -100,10 +101,11 @@ export default function AnalyticsPage() {
           </h3>
           <p className="text-xs text-slate-400 mt-1">Έσοδα μετά την αφαίρεση προμηθειών</p>
         </div>
+        </div>
       </div>
 
       {/* Revenue Breakdown by Platform */}
-      <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto glass-panel p-6 rounded-2xl border border-slate-800 space-y-4 pb-20">
         <h3 className="text-lg font-bold text-white flex items-center gap-2">
           <PieChart className="w-5 h-5 text-sky-400" />
           <span>Κατανομή Εσόδων ανά Πλατφόρμα</span>

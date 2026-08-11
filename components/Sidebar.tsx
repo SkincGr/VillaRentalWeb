@@ -12,7 +12,8 @@ import {
   Building2, 
   Settings,
   Sparkles,
-  CalendarRange
+  CalendarRange,
+  PieChart
 } from 'lucide-react';
 
 const navItems = [
@@ -20,6 +21,7 @@ const navItems = [
   { name: 'Έξοδα', href: '/expenses', icon: Receipt },
   { name: 'Ανά Έτος', href: '/yearly-summary', icon: CalendarRange },
   { name: 'Ημερολόγιο', href: '/calendar', icon: Calendar },
+  { name: 'Στατιστικά', href: '/statistics', icon: PieChart },
   { name: 'Master Data', href: '/master-data', icon: Users },
   { name: 'Αναλυτικά', href: '/analytics', icon: BarChart3 },
 ];
@@ -28,7 +30,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 glass-panel flex flex-col justify-between p-5 hidden md:flex shrink-0 min-h-screen border-r border-slate-800">
+    <aside className="w-64 glass-panel flex flex-col justify-between p-5 hidden md:flex shrink-0 sticky top-0 h-screen border-r border-slate-800 overflow-y-auto">
       <div>
         {/* Brand Header */}
         <div className="flex items-center gap-3 px-2 py-3 mb-6">

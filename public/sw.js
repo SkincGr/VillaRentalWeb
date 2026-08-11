@@ -1,4 +1,4 @@
-const CACHE_NAME = 'villa-rental-v1';
+const CACHE_NAME = 'villa-rental-v3';
 const STATIC_ASSETS = [
   '/',
   '/login',
@@ -6,7 +6,6 @@ const STATIC_ASSETS = [
   '/manifest.json',
 ];
 
-// Install: cache static assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -18,7 +17,6 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate: clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -32,9 +30,13 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: Network first, fallback to cache
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET requests and chrome-extension
   if (
     event.request.method !== 'GET' ||
     event.request.url.startsWith('chrome-extension') ||
@@ -44,10 +46,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Authentication and application pages must always come from the server so
+  // an obsolete UI can never be restored from the PWA cache.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Cache successful responses for static assets
         if (response && response.status === 200) {
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -57,14 +65,7 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        // Offline fallback: return from cache
-        return caches.match(event.request).then((cached) => {
-          if (cached) return cached;
-          // For navigation requests, return the cached home page
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
-          }
-        });
+        return caches.match(event.request);
       })
   );
 });

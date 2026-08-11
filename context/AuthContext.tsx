@@ -26,20 +26,16 @@ interface AuthContextType {
   theme: 'dark' | 'light';
   toggleTheme: () => void;
   initialized: boolean;
-  siteUnlocked: boolean;
-  sitePasscode: string;
-  updateSitePasscode: (newPasscode: string) => void;
-  unlockSite: (passcode: string) => boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// EXCLUSIVE SITE SECURITY PASSCODE (Layer 1 Gatekeeper)
-const EXCLUSIVE_SITE_PASSCODE = 'lesvos#54#Mirina#81';
+const USER_SESSION_KEY = 'vr_user_session';
+const USER_SESSION_COOKIE = 'vr_user_session';
 
-// EXCLUSIVE REGISTERED ACCOUNTS FOR USER LOGIN (Layer 2)
+// EXCLUSIVE REGISTERED ACCOUNTS FOR USER LOGIN
 const REGISTERED_ACCOUNTS = [
   {
     email: 'winston@gmail.com',
@@ -59,8 +55,6 @@ const REGISTERED_ACCOUNTS = [
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(null);
-  const [siteUnlocked, setSiteUnlocked] = useState<boolean>(false);
-  const [customSitePasscode, setCustomSitePasscode] = useState<string>(EXCLUSIVE_SITE_PASSCODE);
   const [selectedHouseId, setSelectedHouseId] = useState<number | 'ALL'>('ALL');
   const [assignedHouseIds, setAssignedHouseIds] = useState<number[]>([]);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -82,25 +76,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      const savedCustomPass = localStorage.getItem('vr_custom_site_passcode');
-      if (savedCustomPass) {
-        setCustomSitePasscode(savedCustomPass);
-      }
-
-      // Check Site Gatekeeper Status
-      const savedSiteUnlock = sessionStorage.getItem('vr_site_unlocked');
-      if (savedSiteUnlock === 'true') {
-        setSiteUnlocked(true);
-        document.cookie = "vr_site_unlocked=true; path=/; max-age=86400; SameSite=Lax";
-      }
-
-      const savedUser = localStorage.getItem('vr_session');
+      // Remove the old persistent login. User authentication now lasts only for
+      // the current browser tab/session and cannot silently survive a new visit.
+      localStorage.removeItem('vr_session');
+      const savedUser = sessionStorage.getItem(USER_SESSION_KEY);
       if (savedUser) {
         const parsed = JSON.parse(savedUser) as UserSession;
-        if (parsed && parsed.role) {
+        const isRegisteredUser = REGISTERED_ACCOUNTS.some(account =>
+          account.email.toLowerCase() === parsed?.email?.toLowerCase() &&
+          account.role === parsed?.role
+        );
+
+        if (parsed && parsed.role && isRegisteredUser) {
           setUser(parsed);
           loadAssignedHouses(parsed);
+        } else {
+          sessionStorage.removeItem(USER_SESSION_KEY);
+          document.cookie = `${USER_SESSION_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
         }
+      } else {
+        document.cookie = `${USER_SESSION_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
       }
     } catch (e) {
       console.error('AuthProvider initialization error:', e);
@@ -120,29 +115,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         document.documentElement.classList.remove('dark');
       }
     }
-  };
-
-  // Update site passcode dynamically
-  const updateSitePasscode = (newPasscode: string) => {
-    setCustomSitePasscode(newPasscode.trim());
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('vr_custom_site_passcode', newPasscode.trim());
-    }
-  };
-
-  // Layer 1: Unlock Site Protection Gatekeeper (Strict Exact Match)
-  const unlockSite = (passcodeInput: string): boolean => {
-    const cleanPass = passcodeInput.trim();
-    
-    if (cleanPass === customSitePasscode || cleanPass === EXCLUSIVE_SITE_PASSCODE) {
-      setSiteUnlocked(true);
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('vr_site_unlocked', 'true');
-        document.cookie = "vr_site_unlocked=true; path=/; max-age=86400; SameSite=Lax";
-      }
-      return true;
-    }
-    return false;
   };
 
   async function loadAssignedHouses(session: UserSession) {
@@ -225,11 +197,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(sessionUser);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('vr_session', JSON.stringify(sessionUser));
-      document.cookie = "vr_session=true; path=/; max-age=86400; SameSite=Lax";
-      // Auto-unlock site after successful login
-      sessionStorage.setItem('vr_site_unlocked', 'true');
-      document.cookie = "vr_site_unlocked=true; path=/; max-age=86400; SameSite=Lax";
+      sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify(sessionUser));
+      document.cookie = `${USER_SESSION_COOKIE}=active; path=/; SameSite=Strict`;
+      document.cookie = "vr_session=; path=/; max-age=0; SameSite=Lax";
     }
     await loadAssignedHouses(sessionUser);
     return { success: true };
@@ -241,9 +211,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAssignedHouseIds([]);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('vr_session');
-      sessionStorage.removeItem('vr_site_unlocked');
-      document.cookie = "vr_site_unlocked=; path=/; max-age=0";
-      document.cookie = "vr_session=; path=/; max-age=0";
+      sessionStorage.removeItem(USER_SESSION_KEY);
+      document.cookie = `${USER_SESSION_COOKIE}=; path=/; max-age=0; SameSite=Strict`;
+      document.cookie = "vr_session=; path=/; max-age=0; SameSite=Lax";
     }
     router.replace('/login');
   }
@@ -261,10 +231,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         theme,
         toggleTheme,
         initialized,
-        siteUnlocked,
-        sitePasscode: customSitePasscode,
-        updateSitePasscode,
-        unlockSite,
         login,
         logout
       }}

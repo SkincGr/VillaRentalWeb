@@ -221,59 +221,59 @@ export default function YearlySummaryPage() {
   }), [rows]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white tracking-wide flex items-center gap-2">
-          <CalendarDays className="w-6 h-6 text-sky-400" />
-          <span>Ανά Έτος</span>
-        </h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Ετήσια σύνοψη κρατήσεων, εξόδων, φόρων και καθαρού εισοδήματος
-        </p>
+    <div className="h-full flex flex-col max-w-6xl mx-auto w-full overflow-hidden space-y-4">
+      {/* ── FRAME 1: TOP FIXED FRAME (TITLE & KPI CARDS) ── */}
+      <div className="p-4 rounded-2xl border-2 border-slate-800 bg-slate-900 text-white space-y-4 shadow-md shrink-0">
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-wide flex items-center gap-2">
+            <CalendarDays className="w-6 h-6 text-sky-400" />
+            <span>Ανά Έτος</span>
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">
+            Ετήσια σύνοψη κρατήσεων, εξόδων, φόρων και καθαρού εισοδήματος
+          </p>
+        </div>
+
+        {/* KPI Summary Cards */}
+        {!loading && rows.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="glass-card p-4 rounded-2xl">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Συνολικά Έσοδα</span>
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+              </div>
+              <p className="text-xl font-bold text-emerald-400">€{fmt(totals.totalFee)}</p>
+            </div>
+            <div className="glass-card p-4 rounded-2xl">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Commissions</span>
+                <Percent className="w-4 h-4 text-rose-400" />
+              </div>
+              <p className="text-xl font-bold text-rose-400">€{fmt(totals.totalCommissions)}</p>
+            </div>
+            <div className="glass-card p-4 rounded-2xl">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Φόρος</span>
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
+              </div>
+              <p className="text-xl font-bold text-amber-400">€{fmt(totals.tax)}</p>
+            </div>
+            <div className="glass-card p-4 rounded-2xl">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Καθαρό Εισόδημα</span>
+                <Wallet className="w-4 h-4 text-sky-400" />
+              </div>
+              <p className="text-xl font-bold text-sky-400">€{fmt(totals.netIncomeAfterTax)}</p>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* KPI Summary Cards */}
-      {!loading && rows.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="glass-card p-4 rounded-2xl">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Συνολικά Έσοδα</span>
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
-            </div>
-            <p className="text-xl font-bold text-emerald-400">€{fmt(totals.totalFee)}</p>
-          </div>
-          <div className="glass-card p-4 rounded-2xl">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Commissions</span>
-              <Percent className="w-4 h-4 text-rose-400" />
-            </div>
-            <p className="text-xl font-bold text-rose-400">€{fmt(totals.totalCommissions)}</p>
-          </div>
-          <div className="glass-card p-4 rounded-2xl">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Φόρος</span>
-              <ShieldCheck className="w-4 h-4 text-amber-400" />
-            </div>
-            <p className="text-xl font-bold text-amber-400">€{fmt(totals.tax)}</p>
-          </div>
-          <div className="glass-card p-4 rounded-2xl">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Καθαρό Εισόδημα</span>
-              <Wallet className="w-4 h-4 text-sky-400" />
-            </div>
-            <p className="text-xl font-bold text-sky-400">€{fmt(totals.netIncomeAfterTax)}</p>
-          </div>
-        </div>
-      )}
+      {/* ── FRAME 2: BOTTOM SCROLLABLE FRAME (DATA TABLE) ── */}
+      <div className="flex-1 overflow-y-auto overflow-x-auto pr-1 space-y-4 pb-20 min-h-0">
 
       {/* Table */}
-      <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
-        <div className="p-5 border-b border-slate-800 flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-sky-400" />
-          <h2 className="text-base font-bold text-white">Αναλυτικός Πίνακας ανά Έτος</h2>
-        </div>
-
+      <div className="glass-panel rounded-2xl border border-slate-800">
         {loading ? (
           <div className="p-12 text-center">
             <div className="inline-block w-8 h-8 border-2 border-sky-400 border-t-transparent rounded-full animate-spin mb-3" />
@@ -282,38 +282,22 @@ export default function YearlySummaryPage() {
         ) : rows.length === 0 ? (
           <div className="p-12 text-center text-slate-400">Δεν βρέθηκαν δεδομένα.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-800 bg-slate-900/60">
-                  <th className="text-left px-4 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">Έτος</th>
+          <table className="w-full text-sm min-w-[900px]">
+              <thead className="sticky top-0 z-10 bg-slate-900 shadow-md">
+                <tr className="border-b-2 border-slate-800 bg-slate-900">
+                  <th className="bg-slate-900 text-left px-4 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">Έτος</th>
 
-                  <th className="text-center px-3 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">
-                    <div>Κρατήσεις</div>
-                    <div className="text-slate-600 normal-case font-normal text-[10px]">(μη φορολ.)</div>
-                  </th>
+                  <th className="bg-slate-900 text-center px-3 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">Κρατήσεις</th>
 
-                  <th className="text-center px-3 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">
-                    <div>Ημέρες</div>
-                    <div className="text-slate-600 normal-case font-normal text-[10px]">(μη φορολ.)</div>
-                  </th>
+                  <th className="bg-slate-900 text-center px-3 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">Ημέρες</th>
 
-                  <th className="text-right px-3 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">
-                    <div>Έσοδα (€)</div>
-                    <div className="text-slate-600 normal-case font-normal text-[10px]">(μη φορολ.)</div>
-                  </th>
+                  <th className="bg-slate-900 text-right px-3 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">Έσοδα (€)</th>
 
-                  <th className="text-right px-3 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">
-                    <div>Commissions (€)</div>
-                    <div className="text-slate-600 normal-case font-normal text-[10px]">Πλατφ. + Manager + Περιβ.</div>
-                  </th>
+                  <th className="bg-slate-900 text-right px-3 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">Commissions (€)</th>
 
-                  <th className="text-right px-3 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">Έξοδα (€)</th>
-                  <th className="text-right px-3 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">
-                    <div>Φόρος (€)</div>
-                    <div className="text-slate-600 normal-case font-normal text-[10px]">Προοδ. κλίμακα</div>
-                  </th>
-                  <th className="text-right px-4 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">Καθαρό Εισόδημα (€)</th>
+                  <th className="bg-slate-900 text-right px-3 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">Έξοδα (€)</th>
+                  <th className="bg-slate-900 text-right px-3 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">Φόρος (€)</th>
+                  <th className="bg-slate-900 text-right px-4 py-3 text-slate-400 font-semibold uppercase text-xs tracking-wider">Καθαρό Εισόδημα (€)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -426,7 +410,6 @@ export default function YearlySummaryPage() {
                 </tr>
               </tfoot>
             </table>
-          </div>
         )}
       </div>
 
@@ -436,7 +419,7 @@ export default function YearlySummaryPage() {
         <p>• <span className="text-slate-300">Κρατήσεις / Ημέρες / Έσοδα σε παρένθεση</span> = μη φορολογητέα (platforms με <code>tax_able = false</code>)</p>
         <p>• <span className="text-slate-300">Commissions</span> = Platform commission + Manager commission + Περιβαλλοντικό τέλος (φορολ. ημέρες × €15)</p>
         <p>• <span className="text-slate-300">Φόρος</span> = Προοδευτική φορολογική κλίμακα επί των <strong>ακαθάριστων φορολογητέων εσόδων</strong> (όπως στα Οικονομικά Στοιχεία)</p>
-        <p>• <span className="text-slate-300">Καθαρό Εισόδημα</span> = Net Fee (μετά commissions) − Φόρος − Έξοδα</p>
+      </div>
       </div>
     </div>
   );

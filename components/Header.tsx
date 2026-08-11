@@ -58,10 +58,10 @@ export default function Header() {
 
   return (
     <>
-      <header className={`h-16 border-b px-3 sm:px-6 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md transition-colors duration-300 ${
+      <header className={`h-16 shrink-0 border-b-2 px-3 sm:px-6 flex items-center justify-between z-30 transition-colors duration-300 ${
         isDark 
-          ? 'glass-panel border-slate-800/80 bg-slate-950/80' 
-          : 'bg-white/80 border-slate-200 shadow-sm'
+          ? 'bg-slate-900 border-slate-800 text-white' 
+          : 'bg-white border-slate-200 text-slate-900 shadow-sm'
       }`}>
         {/* Left: Mobile Menu Hamburger Button + House Filter / View Mode Dropdown */}
         <div className="flex items-center gap-2 sm:gap-3">

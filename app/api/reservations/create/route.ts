@@ -21,7 +21,8 @@ export async function POST(request: Request) {
       f_house_aid, 
       f_custom_id,
       notes, 
-      comments 
+      comments,
+      advanced_payment
     } = body;
 
     if (!f_custom_id) {
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
           f_custom_id: Number(f_custom_id),
           notes: notes || null,
           comments: comments || null,
+          advanced_payment: Number(advanced_payment || 0),
           canceled: false
         }
       ])

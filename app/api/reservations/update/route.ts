@@ -60,7 +60,7 @@ export async function POST(request: Request) {
         f_house_aid: Number(f_house_aid || 1),
         notes: notes || null,
         comments: comments || null,
-        advanced_payment: advanced_payment !== undefined ? Number(advanced_payment) : null,
+        advanced_payment: (advanced_payment !== undefined && advanced_payment !== null) ? Number(advanced_payment) : 0,
         payed: payed !== undefined ? Boolean(payed) : undefined
       })
       .eq('reser_id', reser_id)

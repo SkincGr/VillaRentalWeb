@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Reservation, House, Platform, Customer, Nationality } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { 
@@ -244,6 +245,7 @@ export default function ReservationsPage() {
     start_date: string;
     end_date: string;
     fee: number;
+    advanced_payment: number;
     num_of_visitors: number;
     kids: number;
     f_platform_id: number;
@@ -265,9 +267,22 @@ export default function ReservationsPage() {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState<boolean>(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const searchParams = useSearchParams();
+  const editIdParam = searchParams.get('edit');
+
   useEffect(() => {
     fetchData();
   }, [role, ownerId]);
+
+  // Handle edit trigger from URL searchParams
+  useEffect(() => {
+    if (editIdParam && reservations.length > 0) {
+      const target = reservations.find(r => r.reser_id === Number(editIdParam));
+      if (target) {
+        handleOpenEditReservation(target);
+      }
+    }
+  }, [editIdParam, reservations]);
 
   // Click outside to close customer dropdown
   useEffect(() => {
@@ -352,6 +367,7 @@ export default function ReservationsPage() {
       start_date: todayStr,
       end_date: todayStr,
       fee: 0,
+      advanced_payment: 0,
       num_of_visitors: 2,
       kids: 0,
       f_platform_id: defaultPlatform,
@@ -362,6 +378,7 @@ export default function ReservationsPage() {
 
   // Open "Edit Reservation" Modal
   const handleOpenEditReservation = (res: Reservation) => {
+    setSelectedRes(null);
     setResFormModal({
       isOpen: true,
       isEditing: true,
@@ -372,6 +389,7 @@ export default function ReservationsPage() {
       start_date: formatDateInput(res.start_date),
       end_date: formatDateInput(res.end_date),
       fee: res.fee,
+      advanced_payment: res.advanced_payment ?? 0,
       num_of_visitors: res.num_of_visitors,
       kids: res.kids,
       f_platform_id: res.f_platform_id || 1,
@@ -680,12 +698,12 @@ export default function ReservationsPage() {
   const isDark = theme === 'dark';
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5 pb-12 relative">
-      {/* ── PROMINENT TOP PANEL WITH + ΝΕΑ ΚΡΑΤΗΣΗ BUTTON ── */}
-      <div className={`p-4 rounded-2xl border shadow-sm transition-colors ${
+    <div className="h-full flex flex-col max-w-5xl mx-auto w-full overflow-hidden space-y-4">
+      {/* ── FRAME 1: TOP FIXED FRAME (GENERAL INFO & CONTROLS) ── */}
+      <div className={`p-4 rounded-2xl border-2 shadow-md shrink-0 transition-colors ${
         isDark 
-          ? 'bg-slate-900/90 border-slate-800' 
-          : 'bg-gradient-to-r from-sky-50 to-indigo-50 border-sky-200'
+          ? 'bg-slate-900 border-slate-800 text-white' 
+          : 'bg-white border-slate-300 text-slate-900'
       }`}>
         {/* Controls Row */}
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -825,7 +843,8 @@ export default function ReservationsPage() {
         </div>
       </div>
 
-      {/* ── RESERVATION CARDS LIST (Sorted by start_date ASCENDING) ── */}
+      {/* ── FRAME 2: BOTTOM SCROLLABLE FRAME (DATA LIST) ── */}
+      <div className="flex-1 overflow-y-auto pr-1 space-y-3.5 pb-20 min-h-0">
       {loading ? (
         <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
           <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
@@ -1023,6 +1042,7 @@ export default function ReservationsPage() {
           })}
         </div>
       )}
+      </div>
 
       {/* ── MOBILE FLOATING "+ ΝΕΑ ΚΡΑΤΗΣΗ" BUTTON ── */}
       <button
@@ -1175,8 +1195,8 @@ export default function ReservationsPage() {
                 </div>
               </div>
 
-              {/* Fee & Visitors */}
-              <div className="grid grid-cols-3 gap-3">
+              {/* Fee, Advanced Payment, Visitors, Kids */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block font-semibold mb-1 text-slate-400">Αρχικό Fee (€)</label>
                   <input
@@ -1188,6 +1208,18 @@ export default function ReservationsPage() {
                       isDark ? 'bg-slate-950 border-slate-800 text-emerald-400' : 'bg-slate-50 border-slate-300 text-emerald-600'
                     }`}
                     required
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-400">Προκαταβολή (€)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={resFormModal.advanced_payment}
+                    onChange={(e) => setResFormModal({ ...resFormModal, advanced_payment: Number(e.target.value) })}
+                    className={`w-full p-2.5 rounded-xl border font-bold ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-amber-400' : 'bg-slate-50 border-slate-300 text-amber-600'
+                    }`}
                   />
                 </div>
                 <div>
