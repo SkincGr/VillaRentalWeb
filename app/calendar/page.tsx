@@ -10,7 +10,6 @@ import {
   ChevronRight, 
   BarChart3, 
   TrendingUp, 
-  CircleDollarSign,
   Calendar as CalendarIcon,
   X,
   User
@@ -239,23 +238,32 @@ export default function YearCalendarPage() {
     return startYear === selectedYear || endYear === selectedYear;
   });
 
-  // 2. Compute Top 3 KPI Metrics
+  // 2. Compute Top 2 KPI Metrics
   const totalReservationsCount = activeYearReservations.length;
-
+  let nonTaxableReservationsCount = 0;
   let totalDaysBooked = 0;
+  let nonTaxableDaysBooked = 0;
+
   activeYearReservations.forEach(res => {
+    const isTaxable = isPlatformTaxable(res.platforms);
+    if (!isTaxable) {
+      nonTaxableReservationsCount++;
+    }
+
     if (res.start_date && res.end_date) {
       const s = new Date(res.start_date).getTime();
       const e = new Date(res.end_date).getTime();
       if (!isNaN(s) && !isNaN(e)) {
         const days = Math.round(Math.abs(e - s) / (1000 * 60 * 60 * 24));
         totalDaysBooked += days;
+        if (!isTaxable) {
+          nonTaxableDaysBooked += days;
+        }
       }
     }
   });
 
-  const periodFinancials = computePeriodFinancials(activeYearReservations, taxItems);
-  const netIncomeAfterTax = periodFinancials.netIncomeAfterTax;
+
 
   // Month names
   const monthNames = [
@@ -375,8 +383,8 @@ export default function YearCalendarPage() {
         </div>
       </div>
 
-      {/* ── TOP 3 SUMMARY CARDS ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* ── TOP 2 SUMMARY CARDS ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Card 1: Total Reservations */}
         <div className={`p-4 rounded-2xl border shadow-sm flex items-center gap-4 transition-all ${
           isDark 
@@ -388,8 +396,11 @@ export default function YearCalendarPage() {
           </div>
           <div>
             <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Total</div>
-            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-300">
-              {totalReservationsCount}
+            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-300 flex items-baseline gap-1.5">
+              <span>{totalReservationsCount}</span>
+              {nonTaxableReservationsCount > 0 && (
+                <span className="text-sm font-bold text-slate-500 dark:text-slate-400">({nonTaxableReservationsCount})</span>
+              )}
             </div>
             <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Reservations</div>
           </div>
@@ -406,28 +417,13 @@ export default function YearCalendarPage() {
           </div>
           <div>
             <div className="text-xs font-semibold text-sky-600 dark:text-sky-400">Days</div>
-            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-              {totalDaysBooked}
+            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 flex items-baseline gap-1.5">
+              <span>{totalDaysBooked}</span>
+              {nonTaxableDaysBooked > 0 && (
+                <span className="text-sm font-bold text-slate-500 dark:text-slate-400">({nonTaxableDaysBooked})</span>
+              )}
             </div>
             <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Days Booked</div>
-          </div>
-        </div>
-
-        {/* Card 3: Income Net Profit */}
-        <div className={`p-4 rounded-2xl border shadow-sm flex items-center gap-4 transition-all ${
-          isDark 
-            ? 'bg-amber-950/30 border-amber-800/50 text-amber-200' 
-            : 'bg-amber-50/80 border-amber-200 text-amber-950'
-        }`}>
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
-            <CircleDollarSign className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-amber-600 dark:text-amber-400">Income</div>
-            <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
-              €{netIncomeAfterTax.toLocaleString('el-GR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-            </div>
-            <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Net Profit (After Tax)</div>
           </div>
         </div>
       </div>
