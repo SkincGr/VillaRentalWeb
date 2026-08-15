@@ -39,14 +39,14 @@ interface HousePeriodEntry {
   endDay: number;
 }
 
-function getFullYearPeriod(year: number): HousePeriodEntry {
+function getDefaultHousePeriod(year: number): HousePeriodEntry {
   return {
-    yearFrom: year,
-    yearTo: year,
-    startMonth: 1,
+    yearFrom: 2000,
+    yearTo: 2099,
+    startMonth: 5,
     startDay: 1,
-    endMonth: 12,
-    endDay: 31,
+    endMonth: 10,
+    endDay: 20,
   };
 }
 
@@ -332,10 +332,8 @@ export default function YearCalendarPage() {
   }, [loading, selectedYear, currentYearNum]);
 
   const configuredOperatingPeriod = getPeriodForYear(housePeriods[selectedHouseId] ?? [], selectedYear);
-  const currentOperatingPeriod = configuredOperatingPeriod ?? getFullYearPeriod(selectedYear);
-  const currentOperatingPeriodLabel = configuredOperatingPeriod
-    ? formatOperatingPeriod(currentOperatingPeriod)
-    : '01/01 - 31/12 (Προσωρινά)';
+  const currentOperatingPeriod = configuredOperatingPeriod ?? getDefaultHousePeriod(selectedYear);
+  const currentOperatingPeriodLabel = formatOperatingPeriod(currentOperatingPeriod);
 
   // 1. Filter active non-canceled reservations for selected year & SPECIFIC house
   const activeYearReservations = reservations.filter(res => {

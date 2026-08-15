@@ -462,7 +462,7 @@ export default function StatisticsPage() {
       const row: any = { month: GR_MONTHS[m] };
       years.forEach(yr => {
         const d = byYearMonth[yr.toString()]?.[m];
-        row[yr.toString()] = d?.bookings ?? 0;
+        row[yr.toString()] = d?.days ?? 0;
       });
       return row;
     });
@@ -685,7 +685,7 @@ export default function StatisticsPage() {
 
             {activeTab === 'monthly' && (
               <div className="space-y-6" role="tabpanel">
-            <SectionDivider icon={Home} title="Ενοικιάσεις ανά Μήνα" subtitle="Πλήθος κρατήσεων ανά μήνα, με ξεχωριστή μπάρα για κάθε έτος" color="border-violet-500" />
+            <SectionDivider icon={Home} title="Ενοικιάσεις ανά Μήνα" subtitle="Ημέρες ενοικίασης ανά μήνα, με ξεχωριστή μπάρα για κάθε έτος" color="border-violet-500" />
 
             <div className="glass-panel rounded-2xl border border-slate-800 p-5 space-y-4">
               {/* House Tabs */}
@@ -703,7 +703,7 @@ export default function StatisticsPage() {
                   ))}
                 </div>
                 <span className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300">
-                  Occurrence (Κρατήσεις)
+                  Ημέρες Ενοικίασης (Days)
                 </span>
               </div>
 
@@ -732,8 +732,8 @@ export default function StatisticsPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                       <XAxis dataKey="month" tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 700 }} axisLine={false} tickLine={false} />
                       <YAxis allowDecimals={false} tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} width={42}
-                        label={{ value: 'Occurrence', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 10, dy: 40 }} />
-                      <Tooltip content={<StackedBarTooltip unit="κρατήσεις" />} cursor={{ fill: 'rgba(148,163,184,0.05)' }} />
+                        label={{ value: 'Ημέρες (Days)', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 10, dy: 40 }} />
+                      <Tooltip content={<StackedBarTooltip unit="ημέρες" />} cursor={{ fill: 'rgba(148,163,184,0.05)' }} />
                       <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} formatter={(v) => <span style={{ color: YEAR_COLORS[parseInt(v)] ?? '#94a3b8' }}>{v}</span>} />
                       {houseChartData.years.map((yr, i) => (
                         <Bar key={yr} dataKey={yr.toString()}
@@ -755,21 +755,21 @@ export default function StatisticsPage() {
                         {selectedHouseData.years.map(yr => (
                           <th key={yr} className="px-3 py-2.5 text-center font-semibold" style={{ color: YEAR_COLORS[yr] ?? '#94a3b8' }}>{yr}</th>
                         ))}
-                        <th className="px-4 py-2.5 text-center text-slate-300 font-semibold">Σύνολο</th>
+                        <th className="px-4 py-2.5 text-center text-slate-300 font-semibold">Σύνολο Ημερών</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/50">
                       {selectedHouseData.allowedMonths.map(m => {
                         const rowTotal = selectedHouseData.years.reduce((s, yr) => {
                           const d = selectedHouseData.byYearMonth[yr.toString()]?.[m];
-                          return s + (d?.bookings ?? 0);
+                          return s + (d?.days ?? 0);
                         }, 0);
                         return (
                           <tr key={m} className="hover:bg-slate-800/30 transition-colors">
                             <td className="px-4 py-2 font-semibold text-white">{GR_MONTHS[m]}</td>
                             {selectedHouseData.years.map(yr => {
                               const d = selectedHouseData.byYearMonth[yr.toString()]?.[m];
-                              const val = d?.bookings ?? 0;
+                              const val = d?.days ?? 0;
                               return (
                                 <td key={yr} className="px-3 py-2 text-center">
                                   {val > 0 ? <span className="font-semibold text-white">{val}</span> : <span className="text-slate-700">—</span>}
@@ -787,12 +787,12 @@ export default function StatisticsPage() {
                         {selectedHouseData.years.map(yr => {
                           const tot = selectedHouseData.allowedMonths.reduce((s, m) => {
                             const d = selectedHouseData.byYearMonth[yr.toString()]?.[m];
-                            return s + (d?.bookings ?? 0);
+                            return s + (d?.days ?? 0);
                           }, 0);
                           return <td key={yr} className="px-3 py-2.5 text-center font-bold text-emerald-400">{tot}</td>;
                         })}
                         <td className="px-4 py-2.5 text-center font-bold text-emerald-400">
-                          {selectedHouseData.allowedMonths.reduce((s, m) => s + (selectedHouseData.totalByMonth[m]?.bookings ?? 0), 0)}
+                          {selectedHouseData.allowedMonths.reduce((s, m) => s + (selectedHouseData.totalByMonth[m]?.days ?? 0), 0)}
                         </td>
                       </tr>
                     </tfoot>

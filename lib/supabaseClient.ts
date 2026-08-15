@@ -13,6 +13,17 @@ export interface House {
   end_period_date?: string | null;   // e.g. '10-15' or '2026-10-15'
 }
 
+export interface HouseToPeriod {
+  f_house_aid: number;
+  start_month: number;
+  start_day: number;
+  end_month: number;
+  end_day: number;
+  efective_startyear: number;
+  efective_endyear: number;
+  created_at?: string;
+}
+
 export interface Platform {
   platform_id: number;
   name: string;
