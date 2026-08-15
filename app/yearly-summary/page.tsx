@@ -3,7 +3,10 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useMemo } from 'react';
-import { CalendarDays, TrendingUp, Receipt, Percent, Wallet, ShieldCheck, BarChart3, Trees } from 'lucide-react';
+import { CalendarDays, TrendingUp, Receipt, Percent, Wallet, ShieldCheck, BarChart3, Trees, DollarSign } from 'lucide-react';
+import {
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend
+} from 'recharts';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface TaxKlimakaItem {
@@ -220,6 +223,20 @@ export default function YearlySummaryPage() {
     totalCommissions: 0, expenses: 0, tax: 0, netIncomeAfterTax: 0,
   }), [rows]);
 
+  // Chart Data: ascending chronological order (e.g. 2015 -> 2026)
+  const chartData = useMemo(() => {
+    return [...rows]
+      .sort((a, b) => a.year - b.year)
+      .map(r => {
+        const netIncome = r.fin.netIncomeAfterTax - r.expenses;
+        return {
+          year: r.year.toString(),
+          totalFee: r.fin.totalFee,
+          netIncome: netIncome,
+        };
+      });
+  }, [rows]);
+
   return (
     <div className="h-full flex flex-col max-w-6xl mx-auto w-full overflow-hidden space-y-4">
       {/* ── FRAME 1: TOP FIXED FRAME (TITLE & KPI CARDS) ── */}
@@ -269,12 +286,79 @@ export default function YearlySummaryPage() {
         )}
       </div>
 
-      {/* ── FRAME 2: BOTTOM SCROLLABLE FRAME (DATA TABLE) ── */}
+      {/* ── FRAME 2: BOTTOM SCROLLABLE FRAME (CHART & DATA TABLE) ── */}
       <div className="flex-1 overflow-y-auto overflow-x-auto pr-1 space-y-4 pb-20 min-h-0">
 
-      {/* Table */}
-      <div className="glass-panel rounded-2xl border border-slate-800">
-        {loading ? (
+        {/* ── LINE CHART: GROSS REVENUE (FEE) VS NET INCOME ── */}
+        {!loading && chartData.length > 0 && (
+          <div className="glass-panel p-5 rounded-2xl border border-slate-800 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-sky-400" />
+                <h2 className="text-sm font-bold text-white tracking-wide">
+                  Εξέλιξη Εσόδων & Καθαρού Εισοδήματος ανά Έτος
+                </h2>
+              </div>
+            </div>
+
+            <div className="h-64 sm:h-72 w-full pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.3} vertical={false} />
+                  <XAxis
+                    dataKey="year"
+                    stroke="#94a3b8"
+                    fontSize={12}
+                    fontWeight={600}
+                    tickLine={false}
+                    axisLine={{ stroke: '#475569' }}
+                  />
+                  <YAxis
+                    stroke="#94a3b8"
+                    fontSize={11}
+                    tickFormatter={(v) => `€${v >= 1000 ? (v / 1000) + 'k' : v}`}
+                    tickLine={false}
+                    axisLine={{ stroke: '#475569' }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#0f172a',
+                      borderColor: '#334155',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)'
+                    }}
+                    formatter={(val: any) => [`€${fmt(Number(val))}`, '']}
+                    labelFormatter={(label) => `Έτος: ${label}`}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
+                  <Line
+                    type="monotone"
+                    dataKey="totalFee"
+                    name="Συνολικά Έσοδα (Fee)"
+                    stroke="#38bdf8"
+                    strokeWidth={3}
+                    dot={{ fill: '#38bdf8', r: 4, strokeWidth: 2, stroke: '#0f172a' }}
+                    activeDot={{ r: 6, stroke: '#38bdf8', strokeWidth: 2, fill: '#fff' }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="netIncome"
+                    name="Καθαρό Εισόδημα"
+                    stroke="#34d399"
+                    strokeWidth={3}
+                    dot={{ fill: '#34d399', r: 4, strokeWidth: 2, stroke: '#0f172a' }}
+                    activeDot={{ r: 6, stroke: '#34d399', strokeWidth: 2, fill: '#fff' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* Table */}
+        <div className="glass-panel rounded-2xl border border-slate-800">
+          {loading ? (
           <div className="p-12 text-center">
             <div className="inline-block w-8 h-8 border-2 border-sky-400 border-t-transparent rounded-full animate-spin mb-3" />
             <p className="text-slate-400 text-sm">Φόρτωση δεδομένων...</p>
