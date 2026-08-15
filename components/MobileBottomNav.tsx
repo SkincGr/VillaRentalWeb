@@ -10,10 +10,9 @@ import {
 } from 'lucide-react';
 
 const mobileNavItems = [
+  { name: 'Ημερολόγιο', href: '/calendar', icon: Calendar },
   { name: 'Κρατήσεις', href: '/', icon: CalendarCheck },
   { name: 'Έξοδα', href: '/expenses', icon: Receipt },
-  { name: 'Ανά Έτος', href: '/yearly-summary', icon: CalendarRange },
-  { name: 'Ημερολόγιο', href: '/calendar', icon: Calendar },
 ];
 
 export default function MobileBottomNav() {

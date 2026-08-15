@@ -20,10 +20,13 @@ import { supabase, House } from '@/lib/supabaseClient';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-// Mobile menu items restricted to primary core items (Option A: Κρατήσεις & Ημερολόγιο)
+import { Receipt } from 'lucide-react';
+
+// Mobile menu items restricted to primary core items (Ημερολόγιο, Κρατήσεις, Έξοδα)
 const mobileNavItems = [
+  { name: 'Ημερολόγιο', href: '/calendar', icon: Calendar },
   { name: 'Κρατήσεις', href: '/', icon: CalendarCheck },
-  { name: 'Ημερολόγιο', href: '/calendar', icon: Calendar }
+  { name: 'Έξοδα', href: '/expenses', icon: Receipt },
 ];
 
 export default function Header() {
