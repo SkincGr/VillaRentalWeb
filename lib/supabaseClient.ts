@@ -71,6 +71,7 @@ export interface Reservation {
   payed?: boolean;
   reservation_day?: string;
   advanced_payment?: number;
+  rank?: number | null;
   customers?: Customer;
   platforms?: Platform;
   houses?: House;

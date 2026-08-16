@@ -22,7 +22,8 @@ export async function POST(request: Request) {
       f_custom_id,
       notes, 
       comments,
-      advanced_payment
+      advanced_payment,
+      rank
     } = body;
 
     if (!f_custom_id) {
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
           notes: notes || null,
           comments: comments || null,
           advanced_payment: Number(advanced_payment || 0),
+          rank: (rank !== undefined && rank !== null && rank !== '') ? Number(rank) : null,
           canceled: false
         }
       ])

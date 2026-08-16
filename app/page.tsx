@@ -32,7 +32,8 @@ import {
   Globe,
   UserPlus,
   RotateCcw,
-  History
+  History,
+  Star
 } from 'lucide-react';
 
 function isPlatformTaxable(platform: any): boolean {
@@ -234,6 +235,7 @@ export default function ReservationsPage() {
     f_platform_id: number;
     f_house_aid: number;
     notes: string;
+    rank?: number | string | null;
   } | null>(null);
 
   // Delete Modal
@@ -359,7 +361,8 @@ export default function ReservationsPage() {
       kids: 0,
       f_platform_id: defaultPlatform,
       f_house_aid: defaultHouse,
-      notes: ''
+      notes: '',
+      rank: ''
     });
   };
 
@@ -381,7 +384,8 @@ export default function ReservationsPage() {
       kids: res.kids,
       f_platform_id: res.f_platform_id || 1,
       f_house_aid: res.f_house_aid || 1,
-      notes: res.notes || res.comments || ''
+      notes: res.notes || res.comments || '',
+      rank: res.rank !== null && res.rank !== undefined ? res.rank : ''
     });
   };
 
@@ -425,7 +429,8 @@ export default function ReservationsPage() {
       const endpoint = resFormModal.isEditing ? '/api/reservations/update' : '/api/reservations/create';
       const payload = {
         ...resFormModal,
-        f_custom_id: finalCustomId
+        f_custom_id: finalCustomId,
+        rank: (resFormModal.rank !== '' && resFormModal.rank !== undefined && resFormModal.rank !== null) ? Number(resFormModal.rank) : null
       };
 
       const response = await fetch(endpoint, {
@@ -1281,8 +1286,8 @@ export default function ReservationsPage() {
                 </div>
               </div>
 
-              {/* Platform & House */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Platform, House & Rank (Αξιολόγηση) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-semibold mb-1 text-slate-400">Πλατφόρμα</label>
                   <select
@@ -1315,6 +1320,24 @@ export default function ReservationsPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-400 flex items-center gap-1">
+                    <Star className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Αξιολόγηση</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="π.χ. 5 ή 10"
+                    value={resFormModal.rank ?? ''}
+                    onChange={(e) => setResFormModal({ ...resFormModal, rank: e.target.value === '' ? '' : e.target.value })}
+                    className={`w-full p-2.5 rounded-xl border font-bold ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-amber-400' : 'bg-slate-50 border-slate-300 text-amber-600'
+                    }`}
+                  />
                 </div>
               </div>
 
@@ -1853,7 +1876,15 @@ export default function ReservationsPage() {
                 <div className={`p-3.5 rounded-xl border space-y-2 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-400">Πλατφόρμα:</span>
-                    <span className="text-sky-400 font-bold">{selectedRes.platforms?.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sky-400 font-bold">{selectedRes.platforms?.name}</span>
+                      {selectedRes.rank != null && (
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 font-bold border border-amber-500/30 flex items-center gap-1 text-[11px]">
+                          <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                          <span>Αξιολόγηση: {selectedRes.rank}</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-400">Αρχικό Fee:</span>

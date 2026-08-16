@@ -21,7 +21,8 @@ import {
   CheckCircle2,
   RefreshCw,
   Clock,
-  Sparkles
+  Sparkles,
+  Star
 } from 'lucide-react';
 
 interface HousePeriodEntry {
@@ -767,7 +768,15 @@ export default function YearCalendarPage() {
                 <div className={`p-3.5 rounded-xl border space-y-2 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-400">Πλατφόρμα:</span>
-                    <span className="text-sky-400 font-bold">{activeResPopup.platforms?.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sky-400 font-bold">{activeResPopup.platforms?.name}</span>
+                      {activeResPopup.rank != null && (
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 font-bold border border-amber-500/30 flex items-center gap-1 text-[11px]">
+                          <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                          <span>Αξιολόγηση: {activeResPopup.rank}</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-400">Αρχικό Fee:</span>
