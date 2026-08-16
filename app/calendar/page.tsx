@@ -508,8 +508,8 @@ export default function YearCalendarPage() {
           </div>
         </div>
 
-        {/* TOP 2 KPI SUMMARY CARDS */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* TOP 2 KPI SUMMARY CARDS (Hidden on mobile, visible on desktop/tablet) */}
+        <div className="hidden sm:grid grid-cols-2 gap-3">
           <div className={`p-3 rounded-xl border flex items-center gap-3 transition-colors ${
             isDark 
               ? 'bg-slate-950/80 border-slate-800 text-white' 
