@@ -6,7 +6,7 @@ import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { Globe, TrendingUp, Calendar, Users, Home, Clock, BarChart2 } from 'lucide-react';
+import { Globe, TrendingUp, Calendar, Users, Home, Clock, BarChart2, Receipt } from 'lucide-react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const GR_MONTHS = ['', 'Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαϊ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ'];
@@ -34,6 +34,18 @@ const DURATION_BUCKETS = [
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+interface RawExpense {
+  expenses_aid: number;
+  f_expcategory_aid: number | null;
+  dateis: string | null;
+  expense: number;
+  comments: string | null;
+  expcategory?: {
+    expcategory_aid: number;
+    expcategory: string;
+  } | null;
+}
+
 interface RawReservation {
   reser_id: number;
   start_date: string;  // ISO timestamp e.g. "2015-07-04T00:00:00+00:00"
@@ -187,21 +199,25 @@ function CustomTooltip({ active, payload }: any) {
   );
 }
 
-function StackedBarTooltip({ active, payload, label, unit }: any) {
+function StackedBarTooltip({ active, payload, label, unit, isCurrency }: any) {
   if (!active || !payload?.length) return null;
   const total = payload.reduce((s: number, p: any) => s + (p.value || 0), 0);
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 shadow-xl text-xs max-w-[220px]">
+    <div className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 shadow-xl text-xs max-w-[260px]">
       <p className="font-black text-white mb-2">{label}</p>
       {payload.filter((p: any) => p.value > 0).sort((a: any, b: any) => b.value - a.value).map((p: any) => (
         <div key={p.dataKey} className="flex justify-between gap-4 mb-0.5">
-          <span style={{ color: p.fill }}>{p.dataKey}</span>
-          <span className="text-white font-semibold">{p.value}{unit ? ` ${unit}` : ''} ({pct(p.value, total)})</span>
+          <span style={{ color: p.fill }} className="truncate">{p.dataKey}</span>
+          <span className="text-white font-semibold shrink-0">
+            {isCurrency ? `€${Number(p.value).toLocaleString('el-GR', { minimumFractionDigits: 2 })}` : `${p.value}${unit ? ` ${unit}` : ''}`} ({pct(p.value, total)})
+          </span>
         </div>
       ))}
       <div className="border-t border-slate-700 mt-2 pt-1.5 flex justify-between">
-        <span className="text-slate-400">Σύνολο</span>
-        <span className="text-white font-bold">{total}{unit ? ` ${unit}` : ''}</span>
+        <span className="text-slate-400 font-bold">Σύνολο</span>
+        <span className="text-emerald-400 font-bold">
+          {isCurrency ? `€${Number(total).toLocaleString('el-GR', { minimumFractionDigits: 2 })}` : `${total}${unit ? ` ${unit}` : ''}`}
+        </span>
       </div>
     </div>
   );
@@ -286,12 +302,13 @@ export default function StatisticsPage() {
   const isDark = theme === 'dark';
 
   const [reservations, setReservations] = useState<RawReservation[]>([]);
+  const [expenses, setExpenses] = useState<RawExpense[]>([]);
   const [housePeriods, setHousePeriods] = useState<Record<number, HousePeriodEntry[]>>({});
   const [loading, setLoading] = useState(true);
 
   // House analysis state
   const [selectedHouseId, setSelectedHouseId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'nationality' | 'monthly' | 'duration'>('nationality');
+  const [activeTab, setActiveTab] = useState<'nationality' | 'monthly' | 'duration' | 'expenses'>('nationality');
 
   useEffect(() => {
     let isMounted = true;
@@ -300,10 +317,14 @@ export default function StatisticsPage() {
       setLoading(true);
 
       try {
-        const response = await fetch('/api/reservations', { cache: 'no-store' });
-        const json = await response.json();
+        const [resResponse, expResponse] = await Promise.all([
+          fetch('/api/reservations', { cache: 'no-store' }),
+          fetch('/api/expenses', { cache: 'no-store' })
+        ]);
+        const json = await resResponse.json();
+        const expJson = await expResponse.json();
 
-        if (!response.ok) {
+        if (!resResponse.ok) {
           throw new Error(json?.error || 'Αδυναμία φόρτωσης στατιστικών');
         }
 
@@ -335,12 +356,14 @@ export default function StatisticsPage() {
         if (isMounted) {
           setReservations(items as RawReservation[]);
           setHousePeriods(normalizedPeriods);
+          setExpenses(Array.isArray(expJson?.expenses) ? expJson.expenses : []);
         }
       } catch (err) {
         console.error('Statistics load error:', err);
         if (isMounted) {
           setReservations([]);
           setHousePeriods({});
+          setExpenses([]);
         }
       } finally {
         if (isMounted) {
@@ -503,6 +526,41 @@ export default function StatisticsPage() {
     };
   }, [reservations]);
 
+  // ── Expenses data ───────────────────────────────────────────────────────────
+  const { expBarData, allExpCats, totalAllExpenses, expCategoryTotals } = useMemo(() => {
+    const yearMap: Record<number, Record<string, number>> = {};
+    const catSet = new Set<string>();
+    const catTotalsMap: Record<string, number> = {};
+    let grandTotal = 0;
+
+    for (const exp of expenses) {
+      if (!exp.dateis) continue;
+      const yr = getYear(exp.dateis);
+      if (isNaN(yr)) continue;
+      const catName = exp.expcategory?.expcategory || 'Χωρίς κατηγορία';
+      const amount = Number(exp.expense || 0);
+
+      catSet.add(catName);
+      yearMap[yr] = yearMap[yr] ?? {};
+      yearMap[yr][catName] = (yearMap[yr][catName] ?? 0) + amount;
+      catTotalsMap[catName] = (catTotalsMap[catName] ?? 0) + amount;
+      grandTotal += amount;
+    }
+
+    const years = Object.keys(yearMap).map(Number).sort();
+    const allCats = Array.from(catSet).sort();
+
+    return {
+      expBarData: years.map(yr => ({
+        year: yr.toString(),
+        ...yearMap[yr]
+      })),
+      allExpCats: allCats,
+      totalAllExpenses: grandTotal,
+      expCategoryTotals: catTotalsMap,
+    };
+  }, [expenses]);
+
   return (
     <div className={`h-full flex flex-col max-w-7xl mx-auto w-full overflow-hidden space-y-4 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
 
@@ -514,7 +572,7 @@ export default function StatisticsPage() {
           </div>
           <div>
             <h1 className="text-lg font-black text-white">Στατιστικά</h1>
-            <p className="text-xs text-slate-400">Ανάλυση κρατήσεων · Εθνικότητα · Μήνες · Διάρκεια</p>
+            <p className="text-xs text-slate-400">Ανάλυση κρατήσεων · Εθνικότητα · Μήνες · Διάρκεια · Έξοδα</p>
           </div>
           {!loading && (
             <div className="ml-auto flex gap-4">
@@ -535,16 +593,17 @@ export default function StatisticsPage() {
         </div>
       </div>
 
-      {/* ── FRAME 2: SCROLLABLE ── */}
+      {/* ── FRAME 2: TABS (4 TABS) ── */}
       <div
-        className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-2 shrink-0"
+        className="grid grid-cols-2 sm:grid-cols-4 gap-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-2 shrink-0"
         role="tablist"
         aria-label="Κατηγορίες στατιστικών"
       >
         {[
           { id: 'nationality' as const, label: 'Εθνικότητα', icon: Globe, activeClass: 'bg-sky-500/20 text-sky-300 border-sky-500/40' },
           { id: 'monthly' as const, label: 'Ενοικιάσεις ανά Μήνα', icon: Calendar, activeClass: 'bg-violet-500/20 text-violet-300 border-violet-500/40' },
-          { id: 'duration' as const, label: 'Ανά Διάρκεια Ενοικίασης', icon: Clock, activeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+          { id: 'duration' as const, label: 'Ανά Διάρκεια', icon: Clock, activeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+          { id: 'expenses' as const, label: 'Έξοδα', icon: Receipt, activeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' },
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -556,14 +615,14 @@ export default function StatisticsPage() {
               role="tab"
               aria-selected={isActive}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-2 rounded-xl border px-3 sm:px-4 py-3 text-xs font-bold transition-all cursor-pointer ${
                 isActive
                   ? tab.activeClass
                   : 'border-transparent text-slate-400 hover:border-slate-700 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <Icon className="w-4 h-4" />
-              <span>{tab.label}</span>
+              <Icon className="w-4 h-4 shrink-0" />
+              <span className="truncate">{tab.label}</span>
             </button>
           );
         })}
@@ -891,6 +950,145 @@ export default function StatisticsPage() {
                 </table>
               </div>
             </div>
+              </div>
+            )}
+
+            {/* ════════════════════════════════════════════════════════
+                SECTION 4 — ΕΞΟΔΑ (STACKED BAR ΑΝΑ ΕΤΟΣ & ΚΑΤΗΓΟΡΙΑ)
+            ═══════════════════════════════════════════════════════════ */}
+            {activeTab === 'expenses' && (
+              <div className="space-y-6" role="tabpanel">
+                <SectionDivider
+                  icon={Receipt}
+                  title="Ανάλυση Εξόδων"
+                  subtitle="Κατανομή εξόδων ανά κατηγορία και ανά έτος (Stacked Bar Chart)"
+                  color="border-emerald-500"
+                />
+
+                {/* Stacked Bar Chart for Expenses */}
+                <div className="glass-panel rounded-2xl border border-slate-800 p-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br from-emerald-500 to-teal-600">
+                        <Receipt className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white text-sm">Εξέλιξη Εξόδων ανά Έτος</h3>
+                        <p className="text-slate-400 text-xs">Σύνθεση κατηγοριών εξόδων για κάθε χρονιά</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-bold text-emerald-300">
+                      Σύνολο: €{totalAllExpenses.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+
+                  {expBarData.length === 0 ? (
+                    <div className="h-48 flex items-center justify-center text-slate-500 text-sm">Δεν υπάρχουν καταγεγραμμένα έξοδα</div>
+                  ) : (
+                    <div className="h-72 sm:h-80">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={expBarData} margin={{ top: 8, right: 24, left: 10, bottom: 8 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                          <XAxis dataKey="year" tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 700 }} axisLine={false} tickLine={false} />
+                          <YAxis 
+                            tick={{ fill: '#64748b', fontSize: 11 }} 
+                            axisLine={false} 
+                            tickLine={false} 
+                            width={55}
+                            tickFormatter={(v) => `€${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`}
+                          />
+                          <Tooltip content={<StackedBarTooltip isCurrency />} cursor={{ fill: 'rgba(148,163,184,0.05)' }} />
+                          <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} formatter={(v) => <span style={{ color: '#94a3b8' }}>{v}</span>} />
+                          {allExpCats.map((cat, i) => (
+                            <Bar 
+                              key={cat} 
+                              dataKey={cat} 
+                              stackId="expenses"
+                              fill={PALETTE[i % PALETTE.length]}
+                              radius={i === allExpCats.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} 
+                            />
+                          ))}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+
+                {/* Expenses Detailed Table */}
+                <div className="glass-panel rounded-2xl border border-slate-800">
+                  <div className="p-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="font-bold text-white text-sm">Αναλυτικός Πίνακας Εξόδων ανά Έτος (€)</h3>
+                      <p className="text-slate-400 text-xs mt-0.5">Ποσά ανά κατηγορία για κάθε έτος</p>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-slate-300 min-w-[700px]">
+                      <thead className="sticky top-0 z-20">
+                        <tr className="border-b-2 border-slate-700">
+                          <th className="sticky left-0 z-30 bg-slate-900 px-4 py-3 text-left text-slate-400 font-semibold uppercase tracking-wider whitespace-nowrap shadow-[2px_0_6px_rgba(0,0,0,0.4)]">Κατηγορία Εξόδου</th>
+                          {expBarData.map(b => (
+                            <th key={b.year} className="bg-slate-900 px-3 py-3 text-center text-slate-400 font-semibold uppercase tracking-wider">{b.year}</th>
+                          ))}
+                          <th className="bg-slate-900 px-4 py-3 text-center text-emerald-400 font-bold uppercase tracking-wider">Σύνολο</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/50">
+                        {allExpCats.map((cat, i) => {
+                          const rowTotal = expCategoryTotals[cat] || 0;
+                          return (
+                            <tr key={cat} className="hover:bg-slate-800/30 transition-colors">
+                              <td className="sticky left-0 z-10 bg-slate-900 px-4 py-2.5 font-medium text-white whitespace-nowrap shadow-[2px_0_6px_rgba(0,0,0,0.3)]">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
+                                  {cat}
+                                </div>
+                              </td>
+                              {expBarData.map(b => {
+                                const val = Number((b as any)[cat] ?? 0);
+                                const yrTotal = allExpCats.reduce((s, c) => s + Number((b as any)[c] ?? 0), 0);
+                                return (
+                                  <td key={b.year} className="px-3 py-2.5 text-center">
+                                    {val > 0 ? (
+                                      <div>
+                                        <span className="font-semibold text-white">€{val.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-slate-500 text-[10px] ml-1">({pct(val, yrTotal)})</span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-slate-700">—</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                              <td className="px-4 py-2.5 text-center">
+                                <span className="text-emerald-400 font-bold">€{rowTotal.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</span>
+                                <span className="text-slate-500 text-[10px] ml-1">({pct(rowTotal, totalAllExpenses)})</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-slate-700 bg-slate-800/40">
+                          <td className="sticky left-0 z-10 bg-slate-800 px-4 py-3 font-bold text-white uppercase text-[10px] tracking-wide shadow-[2px_0_6px_rgba(0,0,0,0.3)]">Σύνολο</td>
+                          {expBarData.map(b => {
+                            const tot = allExpCats.reduce((s, c) => s + Number((b as any)[c] ?? 0), 0);
+                            return (
+                              <td key={b.year} className="px-3 py-3 text-center font-bold text-emerald-400">
+                                €{tot.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                              </td>
+                            );
+                          })}
+                          <td className="px-4 py-3 text-center font-bold text-emerald-400">
+                            €{totalAllExpenses.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
               </div>
             )}
           </>
