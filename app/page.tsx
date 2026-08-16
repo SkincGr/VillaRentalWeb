@@ -702,22 +702,22 @@ export default function ReservationsPage() {
   return (
     <div className="h-full flex flex-col max-w-5xl mx-auto w-full overflow-hidden space-y-4">
       {/* ── FRAME 1: TOP FIXED FRAME (GENERAL INFO & CONTROLS) ── */}
-      <div className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 shadow-md shrink-0 transition-colors ${
+      <div className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 shadow-md shrink-0 transition-colors space-y-2.5 ${
         isDark 
           ? 'bg-slate-900 border-slate-800 text-white' 
           : 'bg-white border-slate-300 text-slate-900'
       }`}>
-        {/* Controls: Responsive Grid / Flex */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
-          {/* Year & House Selection (Full width 2-column grid on mobile, inline flex on desktop) */}
-          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+        {/* Line 1: Year & House Selectors (Left) + Quick Filter Toggles (Right) */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {/* Left: Year & House */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {/* Year Selector */}
             <div className="flex items-center gap-1.5 text-xs font-semibold">
               <span className={`text-[11px] sm:text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Έτος</span>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
-                className={`w-full sm:w-auto px-2.5 py-1.5 rounded-xl border text-xs sm:text-sm font-bold focus:outline-none cursor-pointer ${
+                className={`px-2.5 py-1 rounded-xl border text-xs sm:text-sm font-bold focus:outline-none cursor-pointer ${
                   isDark 
                     ? 'bg-slate-950 border-slate-700 text-white' 
                     : 'bg-white border-slate-300 text-slate-900 shadow-sm'
@@ -729,13 +729,13 @@ export default function ReservationsPage() {
               </select>
             </div>
 
-            {/* House / All Selector */}
+            {/* House Selector */}
             <div className="flex items-center gap-1.5 text-xs font-semibold">
               <span className={`text-[11px] sm:text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Σπίτι</span>
               <select
                 value={selectedHouseId}
                 onChange={(e) => setSelectedHouseId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
-                className={`w-full sm:w-auto px-2.5 py-1.5 rounded-xl border text-xs sm:text-sm font-bold focus:outline-none cursor-pointer truncate ${
+                className={`px-2.5 py-1 rounded-xl border text-xs sm:text-sm font-bold focus:outline-none cursor-pointer max-w-[130px] sm:max-w-none truncate ${
                   isDark 
                     ? 'bg-slate-950 border-slate-700 text-sky-400' 
                     : 'bg-white border-slate-300 text-indigo-600 shadow-sm'
@@ -751,30 +751,19 @@ export default function ReservationsPage() {
             </div>
           </div>
 
-          {/* Action Buttons: "+ Νέα Κράτηση", Toggle Όλα/Τρέχοντα & Hide Cancelled */}
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-            {/* PROMINENT "+ Νέα Κράτηση" BUTTON */}
-            <button
-              type="button"
-              onClick={handleOpenCreateReservation}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-white shadow-md shadow-emerald-500/25 transition-all cursor-pointer ring-2 ring-emerald-400/40 hover:scale-105 active:scale-95 shrink-0"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>+ Νέα Κράτηση</span>
-            </button>
-
+          {/* Right: Toggle [Όλα/Τρέχοντα] & [Hide Cancelled] */}
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* Toggle Όλα / Τρέχοντα */}
             <button
               type="button"
               onClick={() => setOnlyCurrent(!onlyCurrent)}
-              className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                 onlyCurrent
                   ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white border-indigo-500 shadow-sm'
                   : isDark
                     ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white'
                     : 'bg-slate-200/80 border-slate-300 text-slate-700 hover:bg-slate-300'
               }`}
-              title={onlyCurrent ? 'Εμφάνιση μόνο τρεχουσών/μελλοντικών κρατήσεων' : 'Εμφάνιση όλων των κρατήσεων'}
             >
               {onlyCurrent ? <Clock className="w-3.5 h-3.5" /> : <Layers className="w-3.5 h-3.5" />}
               <span>{onlyCurrent ? 'Τρέχοντα' : 'Όλα'}</span>
@@ -784,7 +773,7 @@ export default function ReservationsPage() {
             <button
               type="button"
               onClick={() => setHideCancelled(!hideCancelled)}
-              className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                 hideCancelled
                   ? 'bg-rose-500 text-white border-rose-600 shadow-sm'
                   : isDark
@@ -794,61 +783,55 @@ export default function ReservationsPage() {
               title={hideCancelled ? 'Εμφάνιση ακυρωμένων' : 'Απόκρυψη ακυρωμένων'}
             >
               <Ban className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{hideCancelled ? 'Show Cancelled' : 'Hide Cancelled'}</span>
-              <span className="sm:hidden">{hideCancelled ? 'Ακυρωμένα: On' : 'Ακυρωμένα'}</span>
+              <span>{hideCancelled ? 'Show Cancelled' : 'Hide Cancelled'}</span>
             </button>
           </div>
         </div>
 
-        {/* Counter & Summary Line: Reservations | Income | Financial Details Button */}
-        <div className={`mt-2.5 sm:mt-3 pt-2.5 sm:pt-3 border-t text-[11px] sm:text-xs font-semibold flex flex-wrap items-center justify-between gap-2 ${
+        {/* Line 2: Κρατήσεις: 8  Έσοδα: €0,00 (Left) + [Οικονομικά] (Right) */}
+        <div className={`pt-2 border-t text-xs font-semibold flex items-center justify-between gap-2 ${
           isDark ? 'border-slate-800 text-slate-400' : 'border-sky-200/80 text-sky-900'
         }`}>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-3">
             <div>
               <span>Κρατήσεις: </span>
               <span className="font-bold text-sky-500">{listTotalCount}</span>
             </div>
 
-            <span>•</span>
-
             <div>
               <span>Έσοδα: </span>
               <span className="font-extrabold text-emerald-400">
-                €{visibleNetIncome.toLocaleString('el-GR', { minimumFractionDigits: 0 })}
+                €{visibleNetIncome.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
               </span>
               {payedNetIncome > 0 && (
-                <span className="ml-1 text-amber-400 font-semibold">
-                  (+€{payedNetIncome.toLocaleString('el-GR', { minimumFractionDigits: 0 })} πληρ.)
+                <span className="ml-1 text-amber-400 font-semibold text-[11px]">
+                  (+€{payedNetIncome.toLocaleString('el-GR', { minimumFractionDigits: 2 })} πληρ.)
                 </span>
               )}
             </div>
 
-            <span>•</span>
-
-            {/* Financial Summary Button */}
-            <button
-              type="button"
-              onClick={() => setShowFinancialModal(true)}
-              className="flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-bold bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20 transition-all cursor-pointer shadow-sm active:scale-95"
-              title="Αναλυτικά Οικονομικά Στοιχεία & Φόρος"
-            >
-              <BarChart3 className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Οικονομικά</span>
-            </button>
+            {listCancelledCount > 0 && (
+              <div className="hidden sm:flex items-center gap-1 text-rose-500 text-[11px]">
+                <span>({listCancelledCount} ακυρώσεις)</span>
+              </div>
+            )}
           </div>
 
-          {listCancelledCount > 0 && (
-            <div className="flex items-center gap-1 text-rose-500 font-bold text-[10px] sm:text-xs">
-              <Ban className="w-3 h-3" />
-              <span>{listCancelledCount} ακυρώσεις</span>
-            </div>
-          )}
+          {/* Financial Summary Button */}
+          <button
+            type="button"
+            onClick={() => setShowFinancialModal(true)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20 transition-all cursor-pointer shadow-sm active:scale-95"
+            title="Αναλυτικά Οικονομικά Στοιχεία & Φόρος"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Οικονομικά</span>
+          </button>
         </div>
       </div>
 
       {/* ── FRAME 2: BOTTOM SCROLLABLE FRAME (DATA LIST) ── */}
-      <div className="flex-1 overflow-y-auto pr-1 space-y-3.5 pb-20 min-h-0">
+      <div className="flex-1 overflow-y-auto pr-1 space-y-3 pb-20 min-h-0">
       {loading ? (
         <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
           <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
@@ -864,12 +847,11 @@ export default function ReservationsPage() {
             onClick={handleOpenCreateReservation}
             className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-white shadow-md flex items-center gap-1.5 cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>Δημιουργήστε τη πρώτη κράτηση!</span>
+            <span>+ Νέα Κράτηση</span>
           </button>
         </div>
       ) : (
-        <div className="space-y-3.5">
+        <div className="space-y-3">
           {filteredReservations.map((res) => {
             const startDisplay = formatDateDisplay(res.start_date);
             const endDisplay = formatDateDisplay(res.end_date);
@@ -904,6 +886,7 @@ export default function ReservationsPage() {
             return (
               <div
                 key={res.reser_id}
+                onDoubleClick={() => setSelectedRes(res)}
                 onClick={() => setSelectedRes(res)}
                 className={`p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border transition-all cursor-pointer relative group ${
                   res.canceled
@@ -914,8 +897,9 @@ export default function ReservationsPage() {
                       ? 'bg-slate-900/80 border-slate-800 hover:border-sky-500/40 hover:bg-slate-800/80 shadow-md shadow-black/20'
                       : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md'
                 }`}
+                title="Κάντε διπλό κλικ για προβολή στοιχείων κράτησης"
               >
-                {/* Top Row: Customer Name (with Recurring Count & Nationality in parentheses) & Month Badge */}
+                {/* Line 1 (Top Row): Customer Name (Nationality) [Left] ── Month Year Badge [Right] */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <h3 className={`text-sm sm:text-base font-extrabold tracking-tight flex items-center gap-1.5 flex-wrap ${
@@ -924,19 +908,19 @@ export default function ReservationsPage() {
                         : isDark ? 'text-indigo-300' : 'text-indigo-900'
                     }`}>
                       {res.canceled && <Ban className="w-4 h-4 text-rose-500 shrink-0" />}
-                      <span className="truncate">{res.customers?.name || 'Unknown Customer'}</span>
-                      {stayCount > 1 && (
-                        <span 
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-black bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0"
-                          title={`Ο πελάτης έχει πραγματοποιήσει ${stayCount} ενοικιάσεις συνολικά`}
-                        >
-                          <RotateCcw className="w-2.5 h-2.5 sm:w-3 sm:h-3 stroke-[2.5]" />
-                          <span>({stayCount} φορές)</span>
+                      <span>{res.customers?.name || 'Unknown Customer'}</span>
+                      {nationalityName && (
+                        <span className="text-xs font-semibold text-sky-400 font-normal">
+                          ({nationalityName})
                         </span>
                       )}
-                      {nationalityName && (
-                        <span className="text-[11px] sm:text-xs font-semibold text-sky-400 font-normal shrink-0">
-                          ({nationalityName})
+                      {stayCount > 1 && (
+                        <span 
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                          title={`Ο πελάτης έχει πραγματοποιήσει ${stayCount} ενοικιάσεις συνολικά`}
+                        >
+                          <RotateCcw className="w-2.5 h-2.5 stroke-[2.5]" />
+                          <span>({stayCount} φορές)</span>
                         </span>
                       )}
                     </h3>
@@ -950,46 +934,16 @@ export default function ReservationsPage() {
                     )}
                   </div>
 
-                  {/* Right Column: Month-Year Badge on top, Eye & Pencil action icons directly below */}
-                  <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold bg-indigo-600 text-white shadow-sm">
-                      {monthBadge}
-                    </span>
-
-                    <div className="flex items-center gap-0.5">
-                      {/* Eye Button */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedRes(res);
-                        }}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-sky-500/10 transition-all cursor-pointer"
-                        title="Προβολή"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-
-                      {/* Edit Button */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditReservation(res);
-                        }}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 transition-all cursor-pointer"
-                        title="Επεξεργασία / Διόρθωση"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+                  {/* Top Right: Month-Year Badge */}
+                  <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold bg-indigo-600 text-white shadow-sm shrink-0">
+                    {monthBadge}
+                  </span>
                 </div>
 
-                {/* Dates & Duration Row (Clean date text + Warning Badge ONLY on incoming reservation) */}
-                <div className="mt-1.5 sm:mt-2 text-[11px] sm:text-xs italic text-slate-400 font-semibold flex flex-wrap items-center gap-1.5 sm:gap-2">
+                {/* Line 2: Dates & Duration (e.g. 10/05/2026 - 15/05/2026 (5 days)) */}
+                <div className="mt-1 text-xs italic text-slate-400 font-semibold flex flex-wrap items-center gap-1.5 sm:gap-2">
                   <span>{startDisplay} - {endDisplay}</span>
-                  {diffDays > 0 && <span className="text-slate-500">({diffDays} days)</span>}
+                  {diffDays > 0 && <span className="text-slate-500 not-italic">({diffDays} days)</span>}
                   {isIncomingTurnover && (
                     <span className="px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-black bg-rose-500 text-white shadow-sm not-italic animate-pulse">
                       ⚠️ (CheckOut/CheckIn)
@@ -997,32 +951,34 @@ export default function ReservationsPage() {
                   )}
                 </div>
 
-                {/* Fee / Manager Commission Line */}
-                <div className="mt-1 sm:mt-1.5 text-[11px] sm:text-xs font-medium text-slate-400 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                {/* Line 3: Fee: €0,00 / Manager: €0,00 */}
+                <div className="mt-1 text-xs font-medium text-slate-400 flex flex-wrap items-center gap-1.5 sm:gap-2">
                   <span>Fee: <strong className={isDark ? 'text-slate-200' : 'text-slate-800'}>€{fee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</strong></span>
                   <span>/</span>
                   <span>Manager: <strong className="text-indigo-400">€{managerCommission.toLocaleString('el-GR', { minimumFractionDigits: 2 })}</strong></span>
                   {(res.advanced_payment ?? 0) > 0 && (
-                    <span className="text-amber-400">/ Προκ: <strong>€{Number(res.advanced_payment).toLocaleString('el-GR', { minimumFractionDigits: 0 })}</strong></span>
+                    <span className="text-amber-400">/ Προκ: <strong>€{Number(res.advanced_payment).toLocaleString('el-GR', { minimumFractionDigits: 2 })}</strong></span>
                   )}
                 </div>
 
-                {/* Details Subtitle Row, Green Net Price Tag & Payed Checkbox */}
-                <div className="mt-2 sm:mt-2.5 pt-2 sm:pt-2.5 border-t border-slate-800/40 flex flex-wrap items-center justify-between gap-2 text-[11px] sm:text-xs">
-                  <div className="text-slate-400 space-x-1.5">
+                {/* Line 4 (Bottom Row): Platform | X persons [Left] ── Payed Button & Net Price [Right] */}
+                <div className="mt-2 pt-2 border-t border-slate-800/40 flex items-center justify-between gap-2 text-xs">
+                  {/* Left: Platform | Persons */}
+                  <div className="text-slate-400 space-x-1.5 truncate">
                     <span className="font-semibold text-sky-400">{res.platforms?.name || 'N/A'}</span>
                     <span>|</span>
                     <span>{res.num_of_visitors} persons</span>
                     {res.kids > 0 && <span>/ {res.kids} kids</span>}
                   </div>
 
-                  <div className="flex items-center gap-2 sm:gap-3">
+                  {/* Right: [Payed] Button + Net Price + Edit Icon */}
+                  <div className="flex items-center gap-2 shrink-0">
                     {/* Payed Checkbox */}
                     {!res.canceled && (
                       <button
                         type="button"
                         onClick={(e) => handleTogglePayed(res, e)}
-                        className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer ${
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-bold transition-all cursor-pointer ${
                           res.payed
                             ? 'bg-amber-500/20 border-amber-500/40 text-amber-400 hover:bg-amber-500/30'
                             : isDark
@@ -1031,17 +987,17 @@ export default function ReservationsPage() {
                         }`}
                         title={res.payed ? 'Πληρώθηκε — Κλικ για αναίρεση' : 'Σημείωση ως Πληρωμένο'}
                       >
-                        <span className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 ${
+                        <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${
                           res.payed ? 'border-amber-400 bg-amber-400' : 'border-current'
                         }`}>
-                          {res.payed && <span className="text-white text-[9px] font-black">✓</span>}
+                          {res.payed && <span className="text-white text-[8px] font-black">✓</span>}
                         </span>
                         <span>Payed</span>
                       </button>
                     )}
 
-                    {/* Green Price Tag = Net Fee (minus advanced_payment if any) */}
-                    <div className={`text-base font-extrabold ${
+                    {/* Net Price Tag */}
+                    <div className={`text-xs sm:text-sm font-extrabold ${
                       res.canceled
                         ? 'text-slate-500 line-through'
                         : res.payed
@@ -1051,12 +1007,25 @@ export default function ReservationsPage() {
                       {(res.advanced_payment ?? 0) > 0 && !res.canceled ? (
                         <span>
                           €{(netFee - Number(res.advanced_payment)).toLocaleString('el-GR', { minimumFractionDigits: 2 })}
-                          <span className="ml-1 text-xs font-semibold text-amber-400/70">(-€{Number(res.advanced_payment).toLocaleString('el-GR', { minimumFractionDigits: 2 })} προκ.)</span>
+                          <span className="ml-1 text-[10px] font-semibold text-amber-400/70">(-€{Number(res.advanced_payment).toLocaleString('el-GR', { minimumFractionDigits: 0 })})</span>
                         </span>
                       ) : (
                         `€${netFee.toLocaleString('el-GR', { minimumFractionDigits: 2 })}`
                       )}
                     </div>
+
+                    {/* Edit Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditReservation(res);
+                      }}
+                      className="p-1 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 transition-all cursor-pointer ml-0.5"
+                      title="Επεξεργασία / Διόρθωση"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1066,16 +1035,7 @@ export default function ReservationsPage() {
       )}
       </div>
 
-      {/* ── MOBILE FLOATING "+ ΝΕΑ ΚΡΑΤΗΣΗ" BUTTON ── */}
-      <button
-        type="button"
-        onClick={handleOpenCreateReservation}
-        className="fixed bottom-6 right-6 z-40 p-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white shadow-2xl shadow-emerald-500/50 flex items-center gap-2 cursor-pointer transition-all hover:scale-110 active:scale-95 border-2 border-emerald-300"
-        title="Νέα Κράτηση"
-      >
-        <Plus className="w-6 h-6 stroke-[3]" />
-        <span className="font-black text-xs pr-1 hidden sm:inline">Νέα Κράτηση</span>
-      </button>
+
 
       {/* ── RESERVATION FORM MODAL ── */}
       {resFormModal?.isOpen && (
