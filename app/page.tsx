@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Reservation, House, Platform, Customer, Nationality } from '@/lib/supabaseClient';
+import { Reservation, House, Platform, Customer, Nationality, TaxKlimaka, TaxKlimakaItem, getTaxDiscountPercentage, calculateProgressiveTax } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { 
   Eye, 
@@ -34,14 +34,6 @@ import {
   RotateCcw,
   History
 } from 'lucide-react';
-
-export interface TaxKlimakaItem {
-  tax_klimaka_items_aid: number;
-  f_tax_klimaka_aid: number;
-  from_amount: number;
-  to_amount: number;
-  pososto: number;
-}
 
 function isPlatformTaxable(platform: any): boolean {
   if (!platform) return false;
@@ -121,28 +113,12 @@ function calculateFinancials(feeNum: number, platCommRate: number, managerCommRa
   };
 }
 
-function calculateProgressiveTax(taxableGrossFee: number, items: TaxKlimakaItem[]): number {
-  if (taxableGrossFee <= 0) return 0;
-  
-  const brackets = items.length > 0 
-    ? items.filter(i => i.f_tax_klimaka_aid === 1).sort((a, b) => a.from_amount - b.from_amount)
-    : [
-        { tax_klimaka_items_aid: 1, f_tax_klimaka_aid: 1, from_amount: 0, to_amount: 12000, pososto: 15 },
-        { tax_klimaka_items_aid: 2, f_tax_klimaka_aid: 1, from_amount: 12000, to_amount: 25000, pososto: 35 },
-        { tax_klimaka_items_aid: 3, f_tax_klimaka_aid: 1, from_amount: 25000, to_amount: 1000000, pososto: 45 }
-      ];
-
-  let totalTax = 0;
-  for (const b of brackets) {
-    if (taxableGrossFee > b.from_amount) {
-      const taxableInBracket = Math.min(taxableGrossFee, b.to_amount) - b.from_amount;
-      totalTax += taxableInBracket * (b.pososto / 100);
-    }
-  }
-  return totalTax;
-}
-
-function computePeriodFinancials(resList: Reservation[], taxItems: TaxKlimakaItem[]) {
+function computePeriodFinancials(
+  resList: Reservation[], 
+  taxItems: TaxKlimakaItem[], 
+  taxKlimakaList: TaxKlimaka[] = [],
+  targetYear?: number
+) {
   let activeCount = 0;
   let cancelCount = 0;
   let totalFee = 0;
@@ -194,7 +170,9 @@ function computePeriodFinancials(resList: Reservation[], taxItems: TaxKlimakaIte
 
   const perivalon = taxableDays * 15;
   const totalCommissions = totalPlatComm + totalMgrComm + perivalon;
-  const tax = calculateProgressiveTax(taxableFee, taxItems);
+  const discountPct = getTaxDiscountPercentage(taxKlimakaList, targetYear);
+  const effectiveTaxableAmount = discountPct > 0 ? taxableFee * (1 - discountPct / 100) : taxableFee;
+  const tax = calculateProgressiveTax(taxableFee, taxItems, discountPct);
   const netIncomeAfterTax = totalNetFee - tax;
 
   return {
@@ -202,6 +180,8 @@ function computePeriodFinancials(resList: Reservation[], taxItems: TaxKlimakaIte
     cancelCount,
     totalFee,
     taxableFee,
+    discountPct,
+    effectiveTaxableAmount,
     totalDays,
     taxableDays,
     totalPlatComm,
@@ -223,6 +203,7 @@ export default function ReservationsPage() {
   const [nationalities, setNationalities] = useState<Nationality[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [taxItems, setTaxItems] = useState<TaxKlimakaItem[]>([]);
+  const [taxKlimaka, setTaxKlimaka] = useState<TaxKlimaka[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -317,6 +298,10 @@ export default function ReservationsPage() {
 
       if (json.taxKlimakaItems) {
         setTaxItems(json.taxKlimakaItems);
+      }
+
+      if (json.taxKlimaka) {
+        setTaxKlimaka(json.taxKlimaka);
       }
 
       if (json.platforms) {
@@ -688,11 +673,18 @@ export default function ReservationsPage() {
       return sum + netFee;
     }, 0);
 
-  const actualFinancials = computePeriodFinancials(baseYearAndHouseReservations, taxItems);
+  const actualFinancials = computePeriodFinancials(
+    baseYearAndHouseReservations, 
+    taxItems, 
+    taxKlimaka, 
+    Number(selectedYear)
+  );
 
   const potentialFinancials = computePeriodFinancials(
     baseYearAndHouseReservations.map(r => ({ ...r, canceled: false })),
-    taxItems
+    taxItems,
+    taxKlimaka,
+    Number(selectedYear)
   );
 
   const cancellationLoss = Math.max(0, potentialFinancials.netIncomeAfterTax - actualFinancials.netIncomeAfterTax);
@@ -1704,7 +1696,14 @@ export default function ReservationsPage() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Φόρος (Progressive Tax):</span>
+                  <span className="text-slate-400">
+                    Φόρος (Progressive Tax):
+                    {actualFinancials.discountPct > 0 && (
+                      <span className="text-amber-400 text-[10px] ml-1">
+                        (-{actualFinancials.discountPct}% έκπτωση)
+                      </span>
+                    )}
+                  </span>
                   <span className="font-bold text-sm text-rose-400">
                     -€{actualFinancials.tax.toLocaleString('el-GR', { minimumFractionDigits: 2 })}
                   </span>

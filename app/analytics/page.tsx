@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useMemo } from 'react';
-import { supabase, Reservation, Platform, House } from '@/lib/supabaseClient';
+import { supabase, Reservation, Platform, House, TaxKlimaka, TaxKlimakaItem, getTaxDiscountPercentage, calculateProgressiveTax } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import {
   BarChart3, TrendingUp, DollarSign, Percent, PieChart as PieIcon,
@@ -14,14 +14,6 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip,
   CartesianGrid, Legend, PieChart, Pie, Cell
 } from 'recharts';
-
-interface TaxKlimakaItem {
-  tax_klimaka_items_aid: number;
-  f_tax_klimaka_aid: number;
-  from_amount: number;
-  to_amount: number;
-  pososto: number;
-}
 
 interface Expense {
   expenses_aid: number;
@@ -40,7 +32,7 @@ const MONTH_NAMES = [
   'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ'
 ];
 
-function isPlatformTaxable(platform: Platform | null | undefined): boolean {
+function isPlatformTaxable(platform: any | null | undefined): boolean {
   if (!platform) return false;
   const val = platform.tax_able as unknown;
   return val === true || val === 1 || val === '1' || val === 'true' || val === 't';
@@ -57,26 +49,6 @@ function fmt(n: number) {
   return n.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function calculateProgressiveTax(taxableGrossFee: number, items: TaxKlimakaItem[]): number {
-  if (taxableGrossFee <= 0) return 0;
-  const brackets = items.length > 0
-    ? items.filter(i => i.f_tax_klimaka_aid === 1).sort((a, b) => a.from_amount - b.from_amount)
-    : [
-        { tax_klimaka_items_aid: 1, f_tax_klimaka_aid: 1, from_amount: 0, to_amount: 12000, pososto: 15 },
-        { tax_klimaka_items_aid: 2, f_tax_klimaka_aid: 1, from_amount: 12000, to_amount: 25000, pososto: 35 },
-        { tax_klimaka_items_aid: 3, f_tax_klimaka_aid: 1, from_amount: 25000, to_amount: 1000000, pososto: 45 },
-      ];
-
-  let totalTax = 0;
-  for (const b of brackets) {
-    if (taxableGrossFee > b.from_amount) {
-      const taxableInBracket = Math.min(taxableGrossFee, b.to_amount) - b.from_amount;
-      totalTax += taxableInBracket * (b.pososto / 100);
-    }
-  }
-  return totalTax;
-}
-
 export default function AnalyticsPage() {
   const { theme } = useAuth();
   const isDark = theme === 'dark';
@@ -85,6 +57,7 @@ export default function AnalyticsPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [houses, setHouses] = useState<House[]>([]);
   const [taxItems, setTaxItems] = useState<TaxKlimakaItem[]>([]);
+  const [taxKlimaka, setTaxKlimaka] = useState<TaxKlimaka[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedYear, setSelectedYear] = useState<string>('all');
@@ -97,17 +70,19 @@ export default function AnalyticsPage() {
   async function fetchData() {
     setLoading(true);
     try {
-      const [resRes, expRes, houseRes, taxRes] = await Promise.all([
+      const [resRes, expRes, houseRes, taxRes, taxKlimakaRes] = await Promise.all([
         supabase.from('reservations').select('*, platforms(*), customers(*), houses(*)'),
         supabase.from('expenses').select('*'),
         supabase.from('houses').select('*'),
         supabase.from('tax_klimaka_items').select('*'),
+        supabase.from('tax_klimaka').select('*'),
       ]);
 
       if (resRes.data) setReservations(resRes.data);
       if (expRes.data) setExpenses(expRes.data);
       if (houseRes.data) setHouses(houseRes.data);
       if (taxRes.data) setTaxItems(taxRes.data);
+      if (taxKlimakaRes.data) setTaxKlimaka(taxKlimakaRes.data);
     } catch (e) {
       console.error('Error fetching analytics data:', e);
     } finally {
@@ -203,7 +178,9 @@ export default function AnalyticsPage() {
     const netBeforeTaxExp = totalGrossRevenue - totalCommissions;
 
     const totalExpenses = expList.reduce((sum, e) => sum + Number(e.expense || 0), 0);
-    const tax = calculateProgressiveTax(taxableGrossRevenue, taxItems);
+    const targetYear = selectedYear !== 'all' ? Number(selectedYear) : new Date().getFullYear();
+    const discountPct = getTaxDiscountPercentage(taxKlimaka, targetYear);
+    const tax = calculateProgressiveTax(taxableGrossRevenue, taxItems, discountPct);
     const netCleanProfit = netBeforeTaxExp - totalExpenses - tax;
 
     const adr = totalDays > 0 ? totalGrossRevenue / totalDays : 0;
@@ -214,6 +191,7 @@ export default function AnalyticsPage() {
       totalGrossRevenue,
       taxableGrossRevenue,
       nonTaxableGrossRevenue,
+      discountPct,
       totalDays,
       taxableDays,
       totalPlatComm,
@@ -227,7 +205,7 @@ export default function AnalyticsPage() {
       adr,
       avgStay
     };
-  }, [filteredData, taxItems]);
+  }, [filteredData, taxItems, taxKlimaka, selectedYear]);
 
   // Platform Breakdown
   const platformStats = useMemo(() => {

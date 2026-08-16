@@ -7,16 +7,9 @@ import { CalendarDays, TrendingUp, Receipt, Percent, Wallet, ShieldCheck, BarCha
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend
 } from 'recharts';
+import { TaxKlimaka, TaxKlimakaItem, getTaxDiscountPercentage, calculateProgressiveTax } from '@/lib/supabaseClient';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface TaxKlimakaItem {
-  tax_klimaka_items_aid: number;
-  f_tax_klimaka_aid: number;
-  from_amount: number;
-  to_amount: number;
-  pososto: number;
-}
-
 interface Expense {
   expenses_aid: number;
   dateis: string | null;
@@ -58,30 +51,13 @@ function fmt(n: number) {
   return n.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// Progressive tax — identical to page.tsx
-function calculateProgressiveTax(taxableGrossFee: number, items: TaxKlimakaItem[]): number {
-  if (taxableGrossFee <= 0) return 0;
-
-  const brackets = items.length > 0
-    ? items.filter(i => i.f_tax_klimaka_aid === 1).sort((a, b) => a.from_amount - b.from_amount)
-    : [
-        { tax_klimaka_items_aid: 1, f_tax_klimaka_aid: 1, from_amount: 0,     to_amount: 12000,   pososto: 15 },
-        { tax_klimaka_items_aid: 2, f_tax_klimaka_aid: 1, from_amount: 12000,  to_amount: 25000,   pososto: 35 },
-        { tax_klimaka_items_aid: 3, f_tax_klimaka_aid: 1, from_amount: 25000,  to_amount: 1000000, pososto: 45 },
-      ];
-
-  let totalTax = 0;
-  for (const b of brackets) {
-    if (taxableGrossFee > b.from_amount) {
-      const taxableInBracket = Math.min(taxableGrossFee, b.to_amount) - b.from_amount;
-      totalTax += taxableInBracket * (b.pososto / 100);
-    }
-  }
-  return totalTax;
-}
-
 // Main computation — identical logic to computePeriodFinancials in page.tsx
-function computeYearFinancials(resList: Reservation[], taxItems: TaxKlimakaItem[]) {
+function computeYearFinancials(
+  resList: Reservation[], 
+  taxItems: TaxKlimakaItem[],
+  taxKlimakaList: TaxKlimaka[] = [],
+  targetYear?: number
+) {
   let activeCount = 0;
   let nonTaxableCount = 0;
   let totalFee = 0;
@@ -127,7 +103,9 @@ function computeYearFinancials(resList: Reservation[], taxItems: TaxKlimakaItem[
 
   const perivalon = taxableDays * 15;
   const totalCommissions = totalPlatComm + totalMgrComm + perivalon;
-  const tax = calculateProgressiveTax(taxableFee, taxItems);
+  const discountPct = getTaxDiscountPercentage(taxKlimakaList, targetYear);
+  const effectiveTaxableAmount = discountPct > 0 ? taxableFee * (1 - discountPct / 100) : taxableFee;
+  const tax = calculateProgressiveTax(taxableFee, taxItems, discountPct);
   const netIncomeAfterTax = totalNetFee - tax;
   const nonTaxableFee = totalFee - taxableFee;
 
@@ -137,6 +115,8 @@ function computeYearFinancials(resList: Reservation[], taxItems: TaxKlimakaItem[
     totalFee,
     taxableFee,
     nonTaxableFee,
+    discountPct,
+    effectiveTaxableAmount,
     totalDays,
     taxableDays,
     nonTaxableDays,
@@ -146,7 +126,7 @@ function computeYearFinancials(resList: Reservation[], taxItems: TaxKlimakaItem[
     totalCommissions,
     totalNetFee,
     tax,
-    netIncomeAfterTax,
+    netIncomeAfterTax
   };
 }
 
@@ -155,13 +135,14 @@ export default function YearlySummaryPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [taxItems, setTaxItems] = useState<TaxKlimakaItem[]>([]);
+  const [taxKlimaka, setTaxKlimaka] = useState<TaxKlimaka[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchAll() {
       setLoading(true);
       try {
-        // Reuse the existing /api/reservations endpoint (includes taxKlimakaItems)
+        // Reuse the existing /api/reservations endpoint (includes taxKlimakaItems & taxKlimaka)
         const [resJson, expRes] = await Promise.all([
           fetch('/api/reservations', { cache: 'no-store' }).then(r => r.json()),
           fetch('/api/expenses', { cache: 'no-store' }).then(r => r.json()).catch(() => ({ expenses: [] })),
@@ -169,6 +150,7 @@ export default function YearlySummaryPage() {
 
         setReservations(resJson.reservations || []);
         setTaxItems(resJson.taxKlimakaItems || []);
+        setTaxKlimaka(resJson.taxKlimaka || []);
         setExpenses(expRes.expenses || []);
       } finally {
         setLoading(false);
@@ -194,7 +176,7 @@ export default function YearlySummaryPage() {
         parseInt(r.start_date?.split('-')[0] || '0') === year
       );
 
-      const fin = computeYearFinancials(yearRes, taxItems);
+      const fin = computeYearFinancials(yearRes, taxItems, taxKlimaka, year);
 
       const yearExpenses = expenses
         .filter(e => parseInt((e.dateis || '').split('-')[0] || '0') === year)
@@ -202,7 +184,7 @@ export default function YearlySummaryPage() {
 
       return { year, fin, expenses: yearExpenses };
     });
-  }, [reservations, expenses, taxItems]);
+  }, [reservations, expenses, taxItems, taxKlimaka]);
 
   // Grand totals
   const totals = useMemo(() => rows.reduce((acc, r) => ({

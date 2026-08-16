@@ -75,3 +75,66 @@ export interface Reservation {
   platforms?: Platform;
   houses?: House;
 }
+
+export interface TaxKlimaka {
+  tax_range_aid: number;
+  start_date: string | null;
+  end_date: string | null;
+  is_company: boolean;
+  fpa: number;
+  discount: number;
+}
+
+export interface TaxKlimakaItem {
+  tax_klimaka_items_aid: number;
+  f_tax_klimaka_aid: number;
+  from_amount: number;
+  to_amount: number;
+  pososto: number;
+}
+
+export function getTaxDiscountPercentage(taxKlimakaList: TaxKlimaka[] = [], year?: number): number {
+  if (!taxKlimakaList || taxKlimakaList.length === 0) return 5;
+  const targetYear = year || new Date().getFullYear();
+  const match = taxKlimakaList.find(tk => {
+    if (tk.is_company) return false;
+    const startYear = tk.start_date ? parseInt(tk.start_date.split('-')[0], 10) : 2000;
+    const endYear = tk.end_date ? parseInt(tk.end_date.split('-')[0], 10) : 2099;
+    return targetYear >= startYear && targetYear <= endYear;
+  });
+  if (match && typeof match.discount === 'number') {
+    return match.discount;
+  }
+  const nonCompany = taxKlimakaList.find(tk => !tk.is_company);
+  return nonCompany?.discount ?? 5;
+}
+
+export function calculateProgressiveTax(taxableGrossFee: number, items: TaxKlimakaItem[], discountPct: number = 0): number {
+  if (taxableGrossFee <= 0) return 0;
+  
+  // Subtract discount percentage from taxable amount:
+  // e.g. 5% discount -> effective taxable = taxableGrossFee * (1 - discountPct / 100)
+  const effectiveTaxable = discountPct > 0 
+    ? taxableGrossFee * (1 - discountPct / 100) 
+    : taxableGrossFee;
+
+  if (effectiveTaxable <= 0) return 0;
+
+  const brackets = items && items.length > 0 
+    ? items.filter(i => i.f_tax_klimaka_aid === 1).sort((a, b) => a.from_amount - b.from_amount)
+    : [
+        { tax_klimaka_items_aid: 1, f_tax_klimaka_aid: 1, from_amount: 0, to_amount: 12000, pososto: 15 },
+        { tax_klimaka_items_aid: 2, f_tax_klimaka_aid: 1, from_amount: 12000, to_amount: 25000, pososto: 35 },
+        { tax_klimaka_items_aid: 3, f_tax_klimaka_aid: 1, from_amount: 25000, to_amount: 1000000, pososto: 45 }
+      ];
+
+  let totalTax = 0;
+  for (const b of brackets) {
+    if (effectiveTaxable > b.from_amount) {
+      const taxableInBracket = Math.min(effectiveTaxable, b.to_amount) - b.from_amount;
+      totalTax += taxableInBracket * (b.pososto / 100);
+    }
+  }
+  return totalTax;
+}
+
