@@ -226,6 +226,7 @@ export default function ReservationsPage() {
     f_custom_id?: number;
     customer_name: string;
     f_nationallity_aid?: number;
+    reservation_day?: string;
     start_date: string;
     end_date: string;
     fee: number;
@@ -353,6 +354,7 @@ export default function ReservationsPage() {
       customer_name: '',
       f_custom_id: undefined,
       f_nationallity_aid: undefined,
+      reservation_day: todayStr,
       start_date: todayStr,
       end_date: todayStr,
       fee: 0,
@@ -376,6 +378,7 @@ export default function ReservationsPage() {
       f_custom_id: res.f_custom_id,
       customer_name: res.customers?.name || '',
       f_nationallity_aid: res.customers?.f_nationallity_aid || (res.customers?.nationality?.nationality_aid),
+      reservation_day: res.reservation_day ? formatDateInput(res.reservation_day) : new Date().toISOString().split('T')[0],
       start_date: formatDateInput(res.start_date),
       end_date: formatDateInput(res.end_date),
       fee: res.fee,
@@ -1206,7 +1209,18 @@ export default function ReservationsPage() {
               </div>
 
               {/* Dates Row */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-slate-400">Ημ. Κράτησης</label>
+                  <input
+                    type="date"
+                    value={resFormModal.reservation_day || ''}
+                    onChange={(e) => setResFormModal({ ...resFormModal, reservation_day: e.target.value })}
+                    className={`w-full p-2.5 rounded-xl border font-semibold ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-sky-400' : 'bg-slate-50 border-slate-300 text-sky-700'
+                    }`}
+                  />
+                </div>
                 <div>
                   <label className="block font-semibold mb-1 text-slate-400">Ημερομηνία Έναρξης</label>
                   <input
@@ -1862,6 +1876,11 @@ export default function ReservationsPage() {
                     <p className="text-xs font-semibold text-slate-300">
                       {formatDateDisplay(selectedRes.start_date)} ➔ {formatDateDisplay(selectedRes.end_date)}
                     </p>
+                    {selectedRes.reservation_day && (
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Ημ. Κράτησης: <span className="font-semibold text-slate-300">{formatDateDisplay(selectedRes.reservation_day)}</span>
+                      </p>
+                    )}
                   </div>
 
                   <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>

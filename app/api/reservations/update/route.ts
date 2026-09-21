@@ -27,7 +27,8 @@ export async function POST(request: Request) {
       f_nationallity_aid,
       advanced_payment,
       payed,
-      rank
+      rank,
+      reservation_day
     } = body;
 
     if (!reser_id) {
@@ -49,22 +50,28 @@ export async function POST(request: Request) {
     }
 
     // 2. Update reservation fields
+    const resUpdateData: any = {
+      fee: Number(fee || 0),
+      num_of_visitors: Number(num_of_visitors || 1),
+      kids: Number(kids || 0),
+      start_date: start_date ? new Date(start_date).toISOString() : undefined,
+      end_date: end_date ? new Date(end_date).toISOString() : undefined,
+      f_platform_id: Number(f_platform_id),
+      f_house_aid: Number(f_house_aid || 1),
+      notes: notes || null,
+      comments: comments || null,
+      advanced_payment: (advanced_payment !== undefined && advanced_payment !== null) ? Number(advanced_payment) : 0,
+      payed: payed !== undefined ? Boolean(payed) : undefined,
+      rank: (rank !== undefined && rank !== null && rank !== '') ? Number(rank) : null
+    };
+
+    if (reservation_day) {
+      resUpdateData.reservation_day = new Date(reservation_day).toISOString();
+    }
+
     const { data, error } = await supabase
       .from('reservations')
-      .update({
-        fee: Number(fee || 0),
-        num_of_visitors: Number(num_of_visitors || 1),
-        kids: Number(kids || 0),
-        start_date: start_date ? new Date(start_date).toISOString() : undefined,
-        end_date: end_date ? new Date(end_date).toISOString() : undefined,
-        f_platform_id: Number(f_platform_id),
-        f_house_aid: Number(f_house_aid || 1),
-        notes: notes || null,
-        comments: comments || null,
-        advanced_payment: (advanced_payment !== undefined && advanced_payment !== null) ? Number(advanced_payment) : 0,
-        payed: payed !== undefined ? Boolean(payed) : undefined,
-        rank: (rank !== undefined && rank !== null && rank !== '') ? Number(rank) : null
-      })
+      .update(resUpdateData)
       .eq('reser_id', reser_id)
       .select();
 

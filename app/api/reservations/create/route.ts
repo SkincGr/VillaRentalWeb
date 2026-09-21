@@ -23,7 +23,8 @@ export async function POST(request: Request) {
       notes, 
       comments,
       advanced_payment,
-      rank
+      rank,
+      reservation_day
     } = body;
 
     if (!f_custom_id) {
@@ -49,7 +50,8 @@ export async function POST(request: Request) {
           comments: comments || null,
           advanced_payment: Number(advanced_payment || 0),
           rank: (rank !== undefined && rank !== null && rank !== '') ? Number(rank) : null,
-          canceled: false
+          canceled: false,
+          reservation_day: reservation_day ? new Date(reservation_day).toISOString() : new Date().toISOString()
         }
       ])
       .select();
