@@ -250,7 +250,7 @@ export default function YearCalendarPage() {
   async function fetchData() {
     setLoading(true);
     try {
-      const res = await fetch('/api/reservations', { cache: 'no-store' });
+      const res = await fetch(`/api/reservations?t=${Date.now()}`, { cache: 'no-store' });
       const json = await res.json();
       
       if (json.houses && json.houses.length > 0) {

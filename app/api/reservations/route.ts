@@ -4,9 +4,20 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = 'https://qfmltxeattdcdetbrcie.supabase.co';
 const supabaseAnonKey = 'sb_publishable_luRxRKOVoPW09H5GFlbtmQ_9KlP-xbA';
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: { persistSession: false },
+  global: {
+    fetch: (url, options = {}) => {
+      return fetch(url, {
+        ...options,
+        cache: 'no-store',
+      });
+    },
+  },
+});
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET() {
   try {
@@ -99,6 +110,12 @@ export async function GET() {
       nationalities: nationalityRes.data || [],
       customers: customersRes.data || [],
       housePeriods
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
     });
   } catch (err: any) {
     console.error('API Error:', err);
